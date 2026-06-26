@@ -10,49 +10,48 @@ import WordForm from './WordForm'
 const PAGE_SIZE = 15
 
 const COLUMNS = [
-  { key: 'word_name', label: '단어명', sortable: true },
-  { key: 'eng_name', label: '영문명', sortable: true },
-  { key: 'eng_abbr', label: '영문약어', sortable: true },
+  { key: 'word_nm',       label: '단어명',     sortable: true },
+  { key: 'abb_word_nm',   label: '영문약어',   sortable: true },
+  { key: 'all_word_nm',   label: '영문명',     sortable: true },
+  { key: 'kor_synonym_nm', label: '한글동의어', sortable: true },
   {
-    key: 'word_type',
-    label: '단어구분',
-    sortable: true,
-    render: (v) => <span className="badge badge-blue">{v}</span>,
+    key: 'taxon_yn',
+    label: '분류어',
+    render: (v) => (
+      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
+    ),
   },
   {
-    key: 'is_entity_classifier',
-    label: '엔터티 분류어',
-    render: (v) => (v ? '✓' : ''),
+    key: 'use_yn',
+    label: '사용',
+    render: (v) => (
+      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
+    ),
   },
-  {
-    key: 'is_attr_classifier',
-    label: '속성 분류어',
-    render: (v) => (v ? '✓' : ''),
-  },
-  { key: 'description', label: '설명' },
+  { key: 'word_desc', label: '설명' },
 ]
 
 export default function WordsPage() {
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage]     = useState(1)
 
   const { data, total, loading, error, create, update, remove } = useWords({})
 
-  const [modalMode, setModalMode] = useState(null) // 'create' | 'edit'
-  const [formValue, setFormValue] = useState(WordForm.EMPTY)
-  const [selectedRow, setSelectedRow] = useState(null)
+  const [modalMode,    setModalMode]    = useState(null)
+  const [formValue,    setFormValue]    = useState(WordForm.EMPTY)
+  const [selectedRow,  setSelectedRow]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState(null)
+  const [saving,       setSaving]       = useState(false)
+  const [formError,    setFormError]    = useState(null)
 
   const filtered = useMemo(() => {
     if (!search.trim()) return data
     const q = search.toLowerCase()
     return data.filter(
       (r) =>
-        r.word_name?.toLowerCase().includes(q) ||
-        r.eng_name?.toLowerCase().includes(q) ||
-        r.eng_abbr?.toLowerCase().includes(q)
+        r.word_nm?.toLowerCase().includes(q) ||
+        r.abb_word_nm?.toLowerCase().includes(q) ||
+        r.all_word_nm?.toLowerCase().includes(q)
     )
   }, [data, search])
 
@@ -80,9 +79,10 @@ export default function WordsPage() {
   }
 
   const validate = (v) => {
-    if (!v.word_name.trim()) return '단어명을 입력하세요.'
-    if (!v.eng_name.trim()) return '영문명을 입력하세요.'
-    if (!v.eng_abbr.trim()) return '영문약어를 입력하세요.'
+    if (!v.word_nm?.trim())        return '단어명을 입력하세요.'
+    if (!v.abb_word_nm?.trim())    return '영문약어를 입력하세요.'
+    if (!v.all_word_nm?.trim())    return '영문명을 입력하세요.'
+    if (!v.kor_synonym_nm?.trim()) return '한글동의어를 입력하세요.'
     return null
   }
 
@@ -95,7 +95,7 @@ export default function WordsPage() {
       if (modalMode === 'create') {
         await create(formValue)
       } else {
-        await update(selectedRow.id, formValue)
+        await update(selectedRow.word_id, formValue)
       }
       closeModal()
     } catch (e) {
@@ -108,7 +108,7 @@ export default function WordsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.id)
+      await remove(deleteTarget.word_id)
       setDeleteTarget(null)
     } catch (e) {
       alert(e.message)
@@ -124,16 +124,18 @@ export default function WordsPage() {
           <h1 className="page-title">표준 단어 관리</h1>
           <p className="page-subtitle">데이터 표준화를 위한 단어를 등록하고 관리합니다.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          + 단어 등록
-        </button>
+        <button className="btn btn-primary" onClick={openCreate}>+ 단어 등록</button>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <span className="card-title">단어 목록</span>
+          <span className="card-title">단어 목록 ({total}건)</span>
           <div className="toolbar">
-            <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="단어명, 영문명, 약어 검색" />
+            <SearchBar
+              value={search}
+              onChange={(v) => { setSearch(v); setPage(1) }}
+              placeholder="단어명, 영문약어, 영문명 검색"
+            />
           </div>
         </div>
 
@@ -142,12 +144,7 @@ export default function WordsPage() {
         {loading ? (
           <div className="loading-overlay"><span className="spinner" /></div>
         ) : (
-          <DataTable
-            columns={COLUMNS}
-            rows={paged}
-            onRowClick={openEdit}
-            emptyText="등록된 단어가 없습니다."
-          />
+          <DataTable columns={COLUMNS} rows={paged} onRowClick={openEdit} emptyText="등록된 단어가 없습니다." />
         )}
 
         <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
@@ -164,9 +161,7 @@ export default function WordsPage() {
                   className="btn btn-danger btn-sm"
                   style={{ marginRight: 'auto' }}
                   onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >
-                  삭제
-                </button>
+                >삭제</button>
               )}
               <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
@@ -183,7 +178,7 @@ export default function WordsPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.word_name}" 단어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.word_nm}" 단어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}

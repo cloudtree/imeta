@@ -10,32 +10,39 @@ import DomainForm from './DomainForm'
 const PAGE_SIZE = 15
 
 const COLUMNS = [
-  { key: 'domain_name', label: '도메인명', sortable: true },
-  { key: 'data_type', label: '데이터 타입', sortable: true, render: (v) => <span className="badge badge-gray">{v}</span> },
-  { key: 'length', label: '길이', render: (v) => v || '-' },
-  { key: 'precision', label: '소수점', render: (v) => (v !== '' && v != null ? v : '-') },
-  { key: 'description', label: '설명' },
+  { key: 'domain_nm',     label: '도메인명',      sortable: true },
+  { key: 'domain_div_cd', label: '도메인구분',    sortable: true },
+  { key: 'info_type',     label: '정보유형',      sortable: true },
+  { key: 'data_type',     label: '데이터타입',    render: (v) => <span className="badge badge-gray">{v}</span> },
+  { key: 'data_length',   label: '길이',          render: (v) => v ?? '-' },
+  { key: 'data_scale',    label: '소수점',        render: (v) => (v != null ? v : '-') },
+  {
+    key: 'use_yn',
+    label: '사용',
+    render: (v) => <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>,
+  },
 ]
 
 export default function DomainsPage() {
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage]     = useState(1)
 
-  const { data, loading, error, create, update, remove } = useDomains({})
+  const { data, total, loading, error, create, update, remove } = useDomains({})
 
-  const [modalMode, setModalMode] = useState(null)
-  const [formValue, setFormValue] = useState(DomainForm.EMPTY)
-  const [selectedRow, setSelectedRow] = useState(null)
+  const [modalMode,    setModalMode]    = useState(null)
+  const [formValue,    setFormValue]    = useState(DomainForm.EMPTY)
+  const [selectedRow,  setSelectedRow]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState(null)
+  const [saving,       setSaving]       = useState(false)
+  const [formError,    setFormError]    = useState(null)
 
   const filtered = useMemo(() => {
     if (!search.trim()) return data
     const q = search.toLowerCase()
     return data.filter(
       (r) =>
-        r.domain_name?.toLowerCase().includes(q) ||
+        r.domain_nm?.toLowerCase().includes(q) ||
+        r.domain_div_cd?.toLowerCase().includes(q) ||
         r.data_type?.toLowerCase().includes(q)
     )
   }, [data, search])
@@ -64,8 +71,10 @@ export default function DomainsPage() {
   }
 
   const validate = (v) => {
-    if (!v.domain_name.trim()) return '도메인명을 입력하세요.'
-    if (!v.data_type) return '데이터 타입을 선택하세요.'
+    if (!v.domain_nm?.trim())     return '도메인명을 입력하세요.'
+    if (!v.domain_div_cd?.trim()) return '도메인 구분 코드를 입력하세요.'
+    if (!v.info_type?.trim())     return '정보 유형을 입력하세요.'
+    if (!v.data_type)             return '데이터 타입을 선택하세요.'
     return null
   }
 
@@ -78,7 +87,7 @@ export default function DomainsPage() {
       if (modalMode === 'create') {
         await create(formValue)
       } else {
-        await update(selectedRow.id, formValue)
+        await update(selectedRow.domain_id, formValue)
       }
       closeModal()
     } catch (e) {
@@ -91,7 +100,7 @@ export default function DomainsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.id)
+      await remove(deleteTarget.domain_id)
       setDeleteTarget(null)
     } catch (e) {
       alert(e.message)
@@ -107,16 +116,18 @@ export default function DomainsPage() {
           <h1 className="page-title">표준 도메인 관리</h1>
           <p className="page-subtitle">속성 값의 유형과 데이터 타입을 정의하는 도메인을 관리합니다.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          + 도메인 등록
-        </button>
+        <button className="btn btn-primary" onClick={openCreate}>+ 도메인 등록</button>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <span className="card-title">도메인 목록</span>
+          <span className="card-title">도메인 목록 ({total}건)</span>
           <div className="toolbar">
-            <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="도메인명, 데이터 타입 검색" />
+            <SearchBar
+              value={search}
+              onChange={(v) => { setSearch(v); setPage(1) }}
+              placeholder="도메인명, 구분코드, 데이터타입 검색"
+            />
           </div>
         </div>
 
@@ -125,12 +136,7 @@ export default function DomainsPage() {
         {loading ? (
           <div className="loading-overlay"><span className="spinner" /></div>
         ) : (
-          <DataTable
-            columns={COLUMNS}
-            rows={paged}
-            onRowClick={openEdit}
-            emptyText="등록된 도메인이 없습니다."
-          />
+          <DataTable columns={COLUMNS} rows={paged} onRowClick={openEdit} emptyText="등록된 도메인이 없습니다." />
         )}
 
         <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
@@ -147,9 +153,7 @@ export default function DomainsPage() {
                   className="btn btn-danger btn-sm"
                   style={{ marginRight: 'auto' }}
                   onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >
-                  삭제
-                </button>
+                >삭제</button>
               )}
               <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
@@ -166,7 +170,7 @@ export default function DomainsPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.domain_name}" 도메인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.domain_nm}" 도메인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
