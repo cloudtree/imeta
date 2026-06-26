@@ -1,0 +1,109 @@
+/* ===== App Shell ===== */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ===== Header ===== */
+.app-header {
+  height: var(--header-height);
+  background-color: var(--color-sidebar-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-6);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.app-header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-white);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.app-header__logo svg {
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+/* ===== Body ===== */
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== Sidebar ===== */
+.app-sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--color-sidebar-bg);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: var(--space-4) 0;
+}
+
+.app-sidebar__section-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-sidebar-text);
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-1);
+}
+
+.app-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-sidebar-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: 0;
+  transition: background-color var(--transition), color var(--transition);
+  border-left: 3px solid transparent;
+}
+
+.app-sidebar__link:hover {
+  background-color: var(--color-sidebar-hover);
+  color: var(--color-sidebar-text-active);
+}
+
+.app-sidebar__link--active {
+  background-color: var(--color-sidebar-hover);
+  color: var(--color-sidebar-text-active);
+  border-left-color: var(--color-primary);
+}
+
+.app-sidebar__link svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.app-sidebar__link--active svg {
+  opacity: 1;
+}
+
+/* ===== Main Content ===== */
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.app-content {
+  padding: var(--space-8);
+  max-width: 1200px;
+}
