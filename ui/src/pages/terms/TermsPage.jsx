@@ -10,6 +10,7 @@ import TermForm from './TermForm'
 const PAGE_SIZE = 15
 
 const COLUMNS = [
+  { key: 'subject_name',  label: '주제영역',      render: (v) => v || '-' },
   { key: 'logical_term',  label: '논리명',        sortable: true },
   { key: 'physical_term', label: '물리명',        sortable: true },
   { key: 'domain_div_cd', label: '도메인구분',    sortable: true },

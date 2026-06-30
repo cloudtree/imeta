@@ -1,3 +1,5 @@
+import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/SubjectAreaSelect'
+
 const EMPTY = {
   word_nm: '',
   abb_word_nm: '',
@@ -6,6 +8,7 @@ const EMPTY = {
   taxon_yn: 'N',
   word_desc: '',
   use_yn: 'Y',
+  subject_id: DEFAULT_SUBJECT_ID,
 }
 
 export default function WordForm({ value, onChange }) {
@@ -54,6 +57,14 @@ export default function WordForm({ value, onChange }) {
             <option value="N">N (미사용)</option>
           </select>
         </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">주제영역</label>
+        <SubjectAreaSelect
+          value={value.subject_id}
+          onChange={(v) => onChange({ ...value, subject_id: v })}
+        />
       </div>
 
       <div className="form-group">

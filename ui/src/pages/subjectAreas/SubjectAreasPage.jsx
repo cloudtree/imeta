@@ -1,27 +1,33 @@
 import { useState, useMemo } from 'react'
-import { useWords } from '../../hooks/useWords'
+import { useSubjectAreas } from '../../hooks/useSubjectAreas'
 import DataTable from '../../components/common/DataTable'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
 import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
-import WordForm from './WordForm'
+import SubjectAreaForm from './SubjectAreaForm'
 
 const PAGE_SIZE = 15
 
 const COLUMNS = [
-  { key: 'subject_name', label: '주제영역',   render: (v) => v || '-' },
-  { key: 'word_nm',       label: '단어명',     sortable: true },
-  { key: 'abb_word_nm',   label: '영문약어',   sortable: true },
-  { key: 'all_word_nm',   label: '영문명',     sortable: true },
-  { key: 'kor_synonym_nm', label: '한글동의어', sortable: true },
+  { key: 'subject_id',   label: '주제영역 ID',  sortable: true },
+  { key: 'subject_name', label: '주제영역명',   sortable: true },
   {
-    key: 'taxon_yn',
-    label: '분류어',
-    render: (v) => (
-      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
-    ),
+    key: 'word_count',
+    label: '단어',
+    render: (v) => <span className="badge badge-gray">{v ?? 0}</span>,
   },
+  {
+    key: 'term_count',
+    label: '용어',
+    render: (v) => <span className="badge badge-gray">{v ?? 0}</span>,
+  },
+  {
+    key: 'domain_count',
+    label: '도메인',
+    render: (v) => <span className="badge badge-gray">{v ?? 0}</span>,
+  },
+  { key: 'description',  label: '설명',  render: (v) => v || '-' },
   {
     key: 'use_yn',
     label: '사용',
@@ -31,14 +37,14 @@ const COLUMNS = [
   },
 ]
 
-export default function WordsPage() {
+export default function SubjectAreasPage() {
   const [search, setSearch] = useState('')
-  const [page, setPage]     = useState(1)
+  const [page,   setPage]   = useState(1)
 
-  const { data, total, loading, error, create, update, remove } = useWords({})
+  const { data, total, loading, error, create, update, remove } = useSubjectAreas({})
 
   const [modalMode,    setModalMode]    = useState(null)
-  const [formValue,    setFormValue]    = useState(WordForm.EMPTY)
+  const [formValue,    setFormValue]    = useState(SubjectAreaForm.EMPTY)
   const [selectedRow,  setSelectedRow]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [saving,       setSaving]       = useState(false)
@@ -49,9 +55,8 @@ export default function WordsPage() {
     const q = search.toLowerCase()
     return data.filter(
       (r) =>
-        r.word_nm?.toLowerCase().includes(q) ||
-        r.abb_word_nm?.toLowerCase().includes(q) ||
-        r.all_word_nm?.toLowerCase().includes(q)
+        r.subject_id?.toLowerCase().includes(q) ||
+        r.subject_name?.toLowerCase().includes(q)
     )
   }, [data, search])
 
@@ -61,7 +66,7 @@ export default function WordsPage() {
   }, [filtered, page])
 
   const openCreate = () => {
-    setFormValue(WordForm.EMPTY)
+    setFormValue(SubjectAreaForm.EMPTY)
     setFormError(null)
     setModalMode('create')
   }
@@ -79,10 +84,8 @@ export default function WordsPage() {
   }
 
   const validate = (v) => {
-    if (!v.word_nm?.trim())        return '단어명을 입력하세요.'
-    if (!v.abb_word_nm?.trim())    return '영문약어를 입력하세요.'
-    if (!v.all_word_nm?.trim())    return '영문명을 입력하세요.'
-    if (!v.kor_synonym_nm?.trim()) return '한글동의어를 입력하세요.'
+    if (!v.subject_id?.trim())   return '주제영역 ID를 입력하세요.'
+    if (!v.subject_name?.trim()) return '주제영역명을 입력하세요.'
     return null
   }
 
@@ -95,7 +98,7 @@ export default function WordsPage() {
       if (modalMode === 'create') {
         await create(formValue)
       } else {
-        await update(selectedRow.word_id, formValue)
+        await update(selectedRow.subject_id, formValue)
       }
       closeModal()
     } catch (e) {
@@ -108,7 +111,7 @@ export default function WordsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.word_id)
+      await remove(deleteTarget.subject_id)
       setDeleteTarget(null)
     } catch (e) {
       alert(e.message)
@@ -121,20 +124,20 @@ export default function WordsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">표준 단어 관리</h1>
-          <p className="page-subtitle">데이터 표준화를 위한 단어를 등록하고 관리합니다.</p>
+          <h1 className="page-title">주제영역 관리</h1>
+          <p className="page-subtitle">데이터 모델의 주제영역을 등록하고 관리합니다.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ 단어 등록</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ 주제영역 등록</button>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <span className="card-title">단어 목록 ({total}건)</span>
+          <span className="card-title">주제영역 목록 ({total}건)</span>
           <div className="toolbar">
             <SearchBar
               value={search}
               onChange={(v) => { setSearch(v); setPage(1) }}
-              placeholder="단어명, 영문약어, 영문명 검색"
+              placeholder="주제영역 ID, 주제영역명 검색"
             />
           </div>
         </div>
@@ -144,7 +147,12 @@ export default function WordsPage() {
         {loading ? (
           <div className="loading-overlay"><span className="spinner" /></div>
         ) : (
-          <DataTable columns={COLUMNS} rows={paged} onRowClick={openEdit} emptyText="등록된 단어가 없습니다." />
+          <DataTable
+            columns={COLUMNS}
+            rows={paged}
+            onRowClick={openEdit}
+            emptyText="등록된 주제영역이 없습니다."
+          />
         )}
 
         <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
@@ -152,7 +160,7 @@ export default function WordsPage() {
 
       {modalMode && (
         <Modal
-          title={modalMode === 'create' ? '표준 단어 등록' : '표준 단어 수정'}
+          title={modalMode === 'create' ? '주제영역 등록' : '주제영역 수정'}
           onClose={closeModal}
           footer={
             <>
@@ -172,13 +180,17 @@ export default function WordsPage() {
           }
         >
           {formError && <div className="alert alert-error">{formError}</div>}
-          <WordForm value={formValue} onChange={setFormValue} />
+          <SubjectAreaForm value={formValue} onChange={setFormValue} isEdit={modalMode === 'edit'} />
         </Modal>
       )}
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.word_nm}" 단어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={
+            (Number(deleteTarget.word_count) + Number(deleteTarget.term_count) + Number(deleteTarget.domain_count)) > 0
+              ? `"${deleteTarget.subject_name}" 주제영역을 삭제하시겠습니까?\n연결된 단어 ${deleteTarget.word_count}건, 용어 ${deleteTarget.term_count}건, 도메인 ${deleteTarget.domain_count}건의 주제영역이 해제됩니다.`
+              : `"${deleteTarget.subject_name}" 주제영역을 삭제하시겠습니까?`
+          }
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}

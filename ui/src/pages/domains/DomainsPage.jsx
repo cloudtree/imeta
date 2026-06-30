@@ -10,6 +10,7 @@ import DomainForm from './DomainForm'
 const PAGE_SIZE = 15
 
 const COLUMNS = [
+  { key: 'subject_name',  label: '주제영역',      render: (v) => v || '-' },
   { key: 'domain_nm',     label: '도메인명',      sortable: true },
   { key: 'domain_div_cd', label: '도메인구분',    sortable: true },
   { key: 'info_type',     label: '정보유형',      sortable: true },

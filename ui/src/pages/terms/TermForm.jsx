@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { domainsApi } from '../../api/domains'
+import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/SubjectAreaSelect'
 
 const EMPTY = {
   logical_term:  '',
@@ -10,6 +11,7 @@ const EMPTY = {
   data_len:      '',
   term_desc:     '',
   use_yn:        'Y',
+  subject_id:    DEFAULT_SUBJECT_ID,
 }
 
 const DATA_TYPES = ['VARCHAR', 'CHAR', 'NUMBER', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'CLOB']
@@ -76,6 +78,14 @@ export default function TermForm({ value, onChange }) {
             <option value="N">N (미사용)</option>
           </select>
         </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">주제영역</label>
+        <SubjectAreaSelect
+          value={value.subject_id}
+          onChange={(v) => onChange({ ...value, subject_id: v })}
+        />
       </div>
 
       <div className="form-group">
