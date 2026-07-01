@@ -7,7 +7,7 @@ import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import SubjectAreaForm from './SubjectAreaForm'
 
-const PAGE_SIZE = 15
+const PAGE_SIZE = 50
 
 const COLUMNS = [
   { key: 'subject_id',   label: '주제영역 ID',  sortable: true },

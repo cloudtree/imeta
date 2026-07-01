@@ -11,4 +11,6 @@ export const termsApi = {
   create: (data) => api.post(PATH, data),
   update: (id, data) => api.put(`${PATH}/${id}`, data),
   delete: (id) => api.delete(`${PATH}/${id}`),
+  deleteAll: () => api.delete(`${PATH}/all`),
+  bulk:   (rows) => api.post(`${PATH}/bulk`, rows),
 }
