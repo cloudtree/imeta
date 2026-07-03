@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import LoginCat3D from '../../components/auth/LoginCat3D'
 import { useAuth } from '../../context/AuthContext'
 
 export default function LoginPage() {
@@ -33,50 +34,51 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-card__brand">
-          <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <polygon points="18,38 10,10 36,28" fill="#f4a261" />
-            <polygon points="82,38 90,10 64,28" fill="#f4a261" />
-            <ellipse cx="50" cy="55" rx="36" ry="32" fill="#f4a261" />
-            <ellipse cx="37" cy="48" rx="6" ry="7" fill="#2d2d2d" />
-            <ellipse cx="63" cy="48" rx="6" ry="7" fill="#2d2d2d" />
-          </svg>
-          <div>
+      <div className="login-shell">
+        <section className="login-showcase">
+          <LoginCat3D />
+          <div className="login-showcase__copy">
             <h1>메타데이터 관리 포털</h1>
-            <p>로그인 후 기능을 사용할 수 있습니다.</p>
+            <p>표준 단어·용어·도메인을 한곳에서 관리하세요.</p>
           </div>
-        </div>
+        </section>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        <form className="login-card" onSubmit={handleSubmit}>
+          <div className="login-card__header">
+            <h2>로그인</h2>
+            <p>계정 정보를 입력하세요.</p>
+          </div>
 
-        <label className="form-field">
-          <span>사용자명</span>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </label>
+          {error && <div className="alert alert-error">{error}</div>}
 
-        <label className="form-field">
-          <span>비밀번호</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
+          <label className="form-field">
+            <span>사용자명</span>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </label>
 
-        <button className="btn btn-primary login-card__submit" type="submit" disabled={loading}>
-          {loading ? <span className="spinner" /> : null}
-          로그인
-        </button>
-      </form>
+          <label className="form-field">
+            <span>비밀번호</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          <button className="btn btn-primary login-card__submit" type="submit" disabled={loading}>
+            {loading ? <span className="spinner" /> : null}
+            로그인
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
