@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
+import { lookupNaverDictionary, lookupNaverEnglishDictionary } from '../naverDict.js'
 
 const router = Router()
 
@@ -42,6 +43,34 @@ router.get('/', async (req, res) => {
   }
 })
 
+// GET /api/words/dictionary-en  - 네이버 영어사전 영문명·약어 조회 (/:id 보다 먼저 등록)
+router.get('/dictionary-en', async (req, res) => {
+  try {
+    const q = req.query.q?.trim()
+    if (!q) return res.status(400).json({ message: '검색할 단어명(q)을 입력하세요.' })
+
+    const result = await lookupNaverEnglishDictionary(q)
+    res.json(result)
+  } catch (err) {
+    const status = err.status ?? 500
+    res.status(status).json({ message: err.message })
+  }
+})
+
+// GET /api/words/dictionary-desc  - 네이버 국어사전 뜻풀이 조회 (/:id 보다 먼저 등록)
+router.get('/dictionary-desc', async (req, res) => {
+  try {
+    const q = req.query.q?.trim()
+    if (!q) return res.status(400).json({ message: '검색할 단어명(q)을 입력하세요.' })
+
+    const result = await lookupNaverDictionary(q)
+    res.json(result)
+  } catch (err) {
+    const status = err.status ?? 500
+    res.status(status).json({ message: err.message })
+  }
+})
+
 // GET /api/words/dictionary  - 용어 매칭용 전체 단어 (/:id 보다 먼저 등록)
 router.get('/dictionary', async (req, res) => {
   try {
@@ -80,12 +109,21 @@ router.post('/bulk', async (req, res) => {
         const kor_synonym_nm = r.kor_synonym_nm?.trim() ?? ''
         const taxon_yn       = r.taxon_yn?.trim().toUpperCase() || 'N'
         const use_yn         = r.use_yn?.trim().toUpperCase() || 'Y'
-        const word_desc      = r.word_desc?.trim() || null
+        let word_desc        = r.word_desc?.trim() || null
         const subject_id     = r.subject_id?.trim() || 'STD01'
 
         if (!word_nm)     throw new Error('단어명은 필수입니다.')
         if (!abb_word_nm) throw new Error('영문약어는 필수입니다.')
         if (!all_word_nm) throw new Error('영문명은 필수입니다.')
+
+        if (!word_desc) {
+          try {
+            const dict = await lookupNaverDictionary(word_nm)
+            word_desc = dict.definition || null
+          } catch {
+            // 사전 조회 실패 시 설명 없이 등록
+          }
+        }
 
         await client.query(
           `INSERT INTO words (word_nm, abb_word_nm, all_word_nm, kor_synonym_nm, taxon_yn, word_desc, use_yn, subject_id)

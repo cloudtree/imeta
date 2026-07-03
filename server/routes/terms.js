@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
+import { lookupWordDefinition } from '../googleAi.js'
 import {
   mergeLegacyLengthScale,
   normalizeDataLengthInput,
@@ -269,6 +270,20 @@ router.get('/', async (req, res) => {
     res.json({ items: dataResult.rows, total })
   } catch (err) {
     res.status(500).json({ message: err.message })
+  }
+})
+
+// GET /api/terms/ai-desc  - Google AI 용어 정의 조회 (/:id 보다 먼저 등록)
+router.get('/ai-desc', async (req, res) => {
+  try {
+    const q = req.query.q?.trim()
+    if (!q) return res.status(400).json({ message: '검색할 논리명(q)을 입력하세요.' })
+
+    const result = await lookupWordDefinition(q)
+    res.json(result)
+  } catch (err) {
+    const status = err.status ?? 500
+    res.status(status).json({ message: err.message })
   }
 })
 

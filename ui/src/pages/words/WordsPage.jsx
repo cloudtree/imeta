@@ -18,7 +18,7 @@ const EXCEL_COLUMNS = [
   { key: 'kor_synonym_nm', label: '한글동의어',     required: false, example: '거래처'    },
   { key: 'taxon_yn',       label: '분류어여부',     required: false, example: 'N'           },
   { key: 'use_yn',         label: '사용여부',       required: false, example: 'Y'           },
-  { key: 'word_desc',      label: '설명',           required: false, example: '서비스를 이용하는 고객' },
+  { key: 'word_desc',      label: '설명',           required: false, example: '(비우면 네이버 국어사전 자동 입력)' },
 ]
 
 const PAGE_SIZE = 50
@@ -121,6 +121,8 @@ export default function WordsPage() {
       return '영문약어는 최대 10자까지 입력 가능합니다.'
     if (/\s/.test(abbr))
       return '영문약어에는 공백을 사용할 수 없습니다.'
+    if (/[^A-Za-z0-9]/.test(abbr))
+      return '영문약어는 영문과 숫자만 사용할 수 있습니다. (_ 등 특수문자 불가)'
 
     return null
   }
@@ -314,6 +316,8 @@ export default function WordsPage() {
               return '영문약어는 최대 10자까지 가능합니다.'
             if (/\s/.test(abbr))
               return '영문약어에 공백을 사용할 수 없습니다.'
+            if (/[^A-Za-z0-9]/.test(abbr))
+              return '영문약어는 영문과 숫자만 사용할 수 있습니다. (_ 등 특수문자 불가)'
             const yn = r.use_yn?.trim().toUpperCase()
             if (yn && yn !== 'Y' && yn !== 'N')
               return '사용여부는 Y 또는 N 만 입력 가능합니다.'

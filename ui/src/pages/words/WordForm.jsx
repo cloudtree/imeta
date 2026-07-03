@@ -1,4 +1,6 @@
+import { useState, useEffect, useRef } from 'react'
 import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/SubjectAreaSelect'
+import { wordsApi } from '../../api/words'
 
 const EMPTY = {
   word_nm: '',
@@ -12,7 +14,59 @@ const EMPTY = {
 }
 
 export default function WordForm({ value, onChange }) {
+  const [loading, setLoading] = useState(false)
+  const [lookupError, setLookupError] = useState(null)
+  const lookupSeq = useRef(0)
+  const valueRef = useRef(value)
+  valueRef.current = value
+
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value })
+
+  // 단어명 입력 시 네이버 사전 → 영문명·영문약어·설명 자동 입력
+  useEffect(() => {
+    const word = value.word_nm?.trim()
+    if (!word) {
+      setLookupError(null)
+      return undefined
+    }
+
+    const seq = ++lookupSeq.current
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      setLookupError(null)
+      try {
+        const [enResult, descResult] = await Promise.allSettled([
+          wordsApi.lookupEn(word),
+          wordsApi.lookupDesc(word),
+        ])
+
+        if (seq !== lookupSeq.current) return
+
+        const patch = { ...valueRef.current }
+        const errors = []
+
+        if (enResult.status === 'fulfilled') {
+          patch.all_word_nm = enResult.value.all_word_nm
+          patch.abb_word_nm = enResult.value.abb_word_nm
+        } else {
+          errors.push(enResult.reason?.message ?? '영문명 조회 실패')
+        }
+
+        if (descResult.status === 'fulfilled') {
+          patch.word_desc = descResult.value.definition
+        } else {
+          errors.push(descResult.reason?.message ?? '설명 조회 실패')
+        }
+
+        onChange(patch)
+        setLookupError(errors.length === 2 ? errors.join(' / ') : errors[0] ?? null)
+      } finally {
+        if (seq === lookupSeq.current) setLoading(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [value.word_nm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -26,8 +80,14 @@ export default function WordForm({ value, onChange }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <div className="form-group">
-          <label className="form-label required">단어명</label>
+          <label className="form-label required">
+            단어명
+            {loading && <span className="spinner" style={{ marginLeft: 8, width: 14, height: 14 }} />}
+          </label>
           <input className="form-control" value={value.word_nm} onChange={set('word_nm')} placeholder="예: 고객" maxLength={15} />
+          {lookupError && (
+            <span className="form-hint" style={{ color: '#ef4444' }}>{lookupError}</span>
+          )}
         </div>
 
         <div className="form-group">
@@ -40,6 +100,7 @@ export default function WordForm({ value, onChange }) {
         <div className="form-group">
           <label className="form-label required">영문약어</label>
           <input className="form-control" value={value.abb_word_nm} onChange={set('abb_word_nm')} placeholder="예: CUST" style={{ textTransform: 'uppercase' }} maxLength={10} />
+          <span className="form-hint">기본 4자리(모음제거), 표준약어·복합어·의미 구분 필요 시 예외 길이 허용</span>
         </div>
 
         <div className="form-group">
@@ -68,7 +129,7 @@ export default function WordForm({ value, onChange }) {
 
       <div className="form-group">
         <label className="form-label">설명</label>
-        <textarea className="form-control" value={value.word_desc} onChange={set('word_desc')} placeholder="단어의 업무적 의미를 기술하세요." rows={3} />
+        <textarea className="form-control" value={value.word_desc} onChange={set('word_desc')} placeholder="단어명 입력 시 네이버 국어사전 뜻풀이가 자동 입력됩니다." rows={3} />
       </div>
     </>
   )

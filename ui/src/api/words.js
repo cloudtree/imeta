@@ -8,6 +8,8 @@ export const wordsApi = {
     return api.get(`${PATH}${qs ? `?${qs}` : ''}`)
   },
   dictionary: () => api.get(`${PATH}/dictionary`),
+  lookupDesc: (q) => api.get(`${PATH}/dictionary-desc?${new URLSearchParams({ q })}`),
+  lookupEn:   (q) => api.get(`${PATH}/dictionary-en?${new URLSearchParams({ q })}`),
   getById: (id) => api.get(`${PATH}/${id}`),
   create: (data) => api.post(PATH, data),
   update: (id, data) => api.put(`${PATH}/${id}`, data),

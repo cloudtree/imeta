@@ -12,5 +12,6 @@ export const termsApi = {
   update: (id, data) => api.put(`${PATH}/${id}`, data),
   delete: (id) => api.delete(`${PATH}/${id}`),
   deleteAll: () => api.delete(`${PATH}/all`),
+  lookupDesc: (q) => api.get(`${PATH}/ai-desc?${new URLSearchParams({ q })}`),
   bulk:   (rows) => api.post(`${PATH}/bulk`, rows),
 }

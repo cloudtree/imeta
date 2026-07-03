@@ -11,6 +11,9 @@ export const pool = new Pool({
   password: process.env.DB_PASSWORD ?? '',
   min:      Number(process.env.DB_POOL_MIN ?? 2),
   max:      Number(process.env.DB_POOL_MAX ?? 10),
+  ssl: (process.env.DB_HOST ?? '').includes('render.com') || (process.env.DATABASE_URL ?? '').includes('render.com')
+    ? { rejectUnauthorized: false }
+    : undefined,
 })
 
 pool.on('error', (err) => {
