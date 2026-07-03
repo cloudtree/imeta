@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import Modal from './Modal'
+import { warmupApi } from '../../api/client'
+
+const BULK_BATCH_SIZE = 15
 
 /**
  * 공통 엑셀 대량 등록 모달
@@ -21,6 +24,7 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
   const [skipped, setSkipped] = useState([])   // 파싱 단계 제외 행
   const [result,  setResult]  = useState(null)     // { success, errors }
   const [loading, setLoading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState('')
   const [dragOver, setDragOver] = useState(false)
 
   // 템플릿 다운로드
@@ -168,21 +172,31 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
       let backendErrors  = []
 
       if (validRows.length > 0) {
-        const sendRows = validRows.map(({ __rowNum, ...r }) => r)
-        try {
-          const res = await onUpload(sendRows)
-          // 백엔드가 row 인덱스를 0-based로 돌려줄 경우 __rowNum으로 매핑
-          backendSuccess = res.success ?? []
-          backendErrors  = (res.errors ?? []).map((e) => ({
-            row:     validRows[e.row - 2]?.__rowNum ?? e.row,
-            data:    e.data ?? validRows[e.row - 2] ?? {},
-            message: e.message,
-          }))
-        } catch (e) {
-          // 백엔드 전체 오류 시 유효 행 전부 실패 처리
-          validRows.forEach((r) => {
-            backendErrors.push({ row: r.__rowNum, data: r, message: e.message })
-          })
+        setUploadStatus('API 서버 연결 중... (최초 요청은 30~60초 걸릴 수 있습니다)')
+        await warmupApi()
+
+        const totalBatches = Math.ceil(validRows.length / BULK_BATCH_SIZE)
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const start = batchIndex * BULK_BATCH_SIZE
+          const batchValidRows = validRows.slice(start, start + BULK_BATCH_SIZE)
+          const sendRows = batchValidRows.map(({ __rowNum, ...r }) => ({ ...r, __rowNum }))
+
+          setUploadStatus(`등록 중... ${Math.min(start + BULK_BATCH_SIZE, validRows.length)}/${validRows.length}건 (${batchIndex + 1}/${totalBatches} 배치)`)
+
+          try {
+            const res = await onUpload(sendRows)
+            backendSuccess.push(...(res.success ?? []))
+            backendErrors.push(...(res.errors ?? []).map((e) => ({
+              row:     e.row ?? batchValidRows[e.row - 2]?.__rowNum ?? (start + 2),
+              data:    e.data ?? batchValidRows.find((r) => r.__rowNum === e.row) ?? batchValidRows[e.row - 2] ?? {},
+              message: e.message,
+            })))
+          } catch (e) {
+            batchValidRows.forEach((r) => {
+              const { __rowNum, ...data } = r
+              backendErrors.push({ row: __rowNum, data, message: e.message })
+            })
+          }
         }
       }
 
@@ -194,6 +208,7 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
       setStep('result')
     } finally {
       setLoading(false)
+      setUploadStatus('')
     }
   }
 
@@ -317,6 +332,9 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
           <p style={{ margin: 0, fontSize: '14px', color: '#374151' }}>
             <strong>{rows.length}건</strong>의 데이터를 확인했습니다. 등록하시겠습니까?
           </p>
+          {uploadStatus && (
+            <p style={{ margin: 0, fontSize: '13px', color: '#2563eb' }}>{uploadStatus}</p>
+          )}
           <div style={{ overflowX: 'auto', maxHeight: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>

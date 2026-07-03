@@ -453,7 +453,7 @@ router.post('/bulk', async (req, res) => {
 
     for (let i = 0; i < rows.length; i++) {
       const r         = rows[i]
-      const rowNum    = i + 2
+      const rowNum    = Number(r.__rowNum) || (i + 2)
       const savepoint = `sp_row_${i}`
 
       await client.query(`SAVEPOINT ${savepoint}`)
