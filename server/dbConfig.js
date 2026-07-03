@@ -12,12 +12,23 @@ function requireEnv(name) {
   return value
 }
 
+function hostFromSource(source = '') {
+  if (!source) return ''
+  if (source.includes('@') || source.includes('://')) {
+    return parseDatabaseUrl(source)?.host || ''
+  }
+  return source
+}
+
 function resolveSsl(source = '') {
+  const host = hostFromSource(source)
+  // Render 내부 네트워크(dpg-xxx-a)는 SSL 불필요
+  if (RENDER_INTERNAL_HOST.test(host)) return undefined
+
   const flag = process.env.DB_SSL?.trim().toLowerCase()
-  if (flag === 'true' || flag === '1') return { rejectUnauthorized: false }
   if (flag === 'false' || flag === '0') return undefined
-  if (source.includes('render.com')) return { rejectUnauthorized: false }
-  if (RENDER_INTERNAL_HOST.test(source)) return undefined
+  if (flag === 'true' || flag === '1') return { rejectUnauthorized: false }
+  if (host.includes('render.com')) return { rejectUnauthorized: false }
   return undefined
 }
 
@@ -30,22 +41,21 @@ function parseDatabaseUrl(url) {
       port: parsed.port || '5432',
       database: decodeURIComponent(parsed.pathname.replace(/^\//, '') || ''),
       user: decodeURIComponent(parsed.username || ''),
+      password: decodeURIComponent(parsed.password || ''),
     }
   } catch {
     return null
   }
 }
 
-function validateDatabaseName(database, user) {
-  if (!database) return
-
+/** DB_NAME을 사용자명(imetadb_user)으로 잘못 넣은 경우 자동 보정 */
+function normalizeDatabaseName(database, user) {
   if (database === user && database.endsWith('_user')) {
-    throw new Error(
-      `PostgreSQL database name "${database}" is the username, not the database. `
-      + 'Set DB_NAME=imetadb (database) and DB_USER=imetadb_user (user), '
-      + 'or Link Database on Render so DATABASE_URL is injected automatically.',
-    )
+    const corrected = database.slice(0, -'_user'.length)
+    console.warn(`[db] DB name "${database}" looks like a username; using "${corrected}" instead.`)
+    return corrected
   }
+  return database
 }
 
 function pickDatabaseUrl() {
@@ -57,21 +67,59 @@ function pickDatabaseUrl() {
   )
 }
 
+function configFromUrl(url) {
+  const parsed = parseDatabaseUrl(url)
+  if (!parsed) {
+    return { connectionString: url, ssl: resolveSsl(url) }
+  }
+
+  const database = normalizeDatabaseName(parsed.database, parsed.user)
+  if (database === parsed.database) {
+    return { connectionString: url, ssl: resolveSsl(url) }
+  }
+
+  return {
+    host: parsed.host,
+    port: Number(parsed.port),
+    database,
+    user: parsed.user,
+    password: parsed.password,
+    ssl: resolveSsl(parsed.host),
+  }
+}
+
 function pickPgEnvConfig() {
   const host = process.env.PGHOST?.trim()
-  const database = process.env.PGDATABASE?.trim()
+  const database = normalizeDatabaseName(
+    process.env.PGDATABASE?.trim() || '',
+    process.env.PGUSER?.trim() || '',
+  )
   const user = process.env.PGUSER?.trim()
   const password = process.env.PGPASSWORD
 
   if (!host || !database || !user || password == null || password === '') return null
 
-  validateDatabaseName(database, user)
   return {
     host,
     port:     Number(process.env.PGPORT ?? 5432),
     database,
     user,
     password,
+    ssl:      resolveSsl(host),
+  }
+}
+
+function pickDbEnvConfig() {
+  const host = requireEnv('DB_HOST')
+  const user = requireEnv('DB_USER')
+  const database = normalizeDatabaseName(requireEnv('DB_NAME'), user)
+
+  return {
+    host,
+    port:     Number(process.env.DB_PORT ?? 5432),
+    database,
+    user,
+    password: requireEnv('DB_PASSWORD'),
     ssl:      resolveSsl(host),
   }
 }
@@ -95,9 +143,15 @@ export function describeDbTarget() {
   const databaseUrl = pickDatabaseUrl()
   if (databaseUrl) {
     const parsed = parseDatabaseUrl(databaseUrl)
-    return parsed
-      ? { source: 'DATABASE_URL', host: parsed.host, database: parsed.database, user: parsed.user }
-      : { source: 'DATABASE_URL', host: '(parsed failed)', database: '?', user: '?' }
+    if (parsed) {
+      return {
+        source: 'DATABASE_URL',
+        host: parsed.host,
+        database: normalizeDatabaseName(parsed.database, parsed.user),
+        user: parsed.user,
+      }
+    }
+    return { source: 'DATABASE_URL', host: '?', database: '?', user: '?' }
   }
 
   const pg = pickPgEnvConfig()
@@ -105,41 +159,23 @@ export function describeDbTarget() {
     return { source: 'PG*', host: pg.host, database: pg.database, user: pg.user }
   }
 
+  const user = process.env.DB_USER?.trim() || '?'
   return {
     source: 'DB_*',
     host: process.env.DB_HOST?.trim() || '?',
-    database: process.env.DB_NAME?.trim() || '?',
-    user: process.env.DB_USER?.trim() || '?',
+    database: normalizeDatabaseName(process.env.DB_NAME?.trim() || '?', user),
+    user,
   }
 }
 
 export function getPgConfig() {
   const databaseUrl = pickDatabaseUrl()
-  if (databaseUrl) {
-    const parsed = parseDatabaseUrl(databaseUrl)
-    if (parsed) validateDatabaseName(parsed.database, parsed.user)
-    return {
-      connectionString: databaseUrl,
-      ssl: resolveSsl(databaseUrl),
-    }
-  }
+  if (databaseUrl) return configFromUrl(databaseUrl)
 
   const pgConfig = pickPgEnvConfig()
   if (pgConfig) return pgConfig
 
-  const host = requireEnv('DB_HOST')
-  const database = requireEnv('DB_NAME')
-  const user = requireEnv('DB_USER')
-  validateDatabaseName(database, user)
-
-  return {
-    host,
-    port:     Number(process.env.DB_PORT ?? 5432),
-    database,
-    user,
-    password: requireEnv('DB_PASSWORD'),
-    ssl:      resolveSsl(host),
-  }
+  return pickDbEnvConfig()
 }
 
 export function getPoolOptions() {
