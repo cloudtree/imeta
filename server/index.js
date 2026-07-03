@@ -7,6 +7,8 @@ import domainsRouter      from './routes/domains.js'
 import subjectAreasRouter from './routes/subjectAreas.js'
 import domainGroupsRouter from './routes/domainGroups.js'
 import { migrateDomainsDataLength } from './migrateDataLength.js'
+import { describeDbTarget } from './dbConfig.js'
+import { pool } from './db.js'
 
 const app  = express()
 const PORT = process.env.PORT ?? 3000
@@ -35,6 +37,17 @@ app.use((err, _req, res, _next) => {
 })
 
 app.listen(PORT, async () => {
-  await migrateDomainsDataLength()
-  console.log(`Server running on http://localhost:${PORT}`)
+  try {
+    const target = describeDbTarget()
+    console.log(`[db] source=${target.source} host=${target.host} database=${target.database} user=${target.user}`)
+    await pool.query('SELECT 1')
+    await migrateDomainsDataLength()
+    console.log(`Server running on port ${PORT}`)
+  } catch (err) {
+    console.error('[startup] failed:', err.message)
+    if (err.code === '3D000') {
+      console.error('[startup] Hint: DB_NAME must be the database (e.g. imetadb), not the username (e.g. imetadb_user).')
+    }
+    process.exit(1)
+  }
 })
