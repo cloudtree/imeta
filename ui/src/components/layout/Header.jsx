@@ -1,7 +1,15 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Header() {
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <header className="app-header">
       <div
@@ -28,6 +36,12 @@ export default function Header() {
           <line x1="60" y1="64" x2="90" y2="64" stroke="#2d2d2d" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
         <span>메타데이터 관리 포털</span>
+      </div>
+      <div className="app-header__actions">
+        <span className="app-header__user">{user?.username}</span>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>
+          로그아웃
+        </button>
       </div>
     </header>
   )

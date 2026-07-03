@@ -6,8 +6,18 @@ function resolveApiBaseUrl() {
 }
 
 const BASE_URL = resolveApiBaseUrl()
+const AUTH_TOKEN_KEY = 'meta_auth_token'
 const DEFAULT_TIMEOUT_MS = 120_000
 const WARMUP_TIMEOUT_MS = 90_000
+
+export function getAuthToken() {
+  return sessionStorage.getItem(AUTH_TOKEN_KEY)
+}
+
+export function setAuthToken(token) {
+  if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token)
+  else sessionStorage.removeItem(AUTH_TOKEN_KEY)
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -22,6 +32,8 @@ async function request(method, path, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = 
     headers: { 'Content-Type': 'application/json' },
     signal: controller.signal,
   }
+  const token = getAuthToken()
+  if (token) options.headers.Authorization = `Bearer ${token}`
   if (body !== undefined) {
     options.body = JSON.stringify(body)
   }
@@ -49,6 +61,9 @@ async function request(method, path, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = 
       message = data.message ?? message
     } catch {
       // ignore
+    }
+    if (res.status === 401 && !path.startsWith('/auth/login')) {
+      setAuthToken(null)
     }
     throw new Error(message)
   }
