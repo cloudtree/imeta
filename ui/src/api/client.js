@@ -1,4 +1,11 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? '/api'
+function resolveApiBaseUrl() {
+  const url = import.meta.env.VITE_API_URL?.trim()
+  if (!url) return '/api'
+  const base = url.replace(/\/$/, '')
+  return base.endsWith('/api') ? base : `${base}/api`
+}
+
+const BASE_URL = resolveApiBaseUrl()
 
 async function request(method, path, body) {
   const options = {
@@ -13,7 +20,9 @@ async function request(method, path, body) {
   try {
     res = await fetch(`${BASE_URL}${path}`, options)
   } catch {
-    throw new Error('API 서버에 연결할 수 없습니다. 백엔드 서버(http://localhost:3000)가 실행 중인지 확인하세요.')
+    throw new Error(
+      `API 서버에 연결할 수 없습니다. VITE_API_URL(${BASE_URL}) 설정과 백엔드 서버 상태를 확인하세요.`,
+    )
   }
 
   if (!res.ok) {

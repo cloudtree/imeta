@@ -1,4 +1,6 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
 services:
+  # 백엔드 API (Express)
   - type: web
     name: imeta-api
     runtime: node
@@ -11,6 +13,25 @@ services:
         fromDatabase:
           name: imetadb
           property: connectionString
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: imeta-ui
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # 프론트엔드 (Vite React SPA)
+  - type: web
+    name: imeta-ui
+    runtime: static
+    rootDir: ui
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: imeta-api
+          envVarKey: RENDER_EXTERNAL_URL
 
 databases:
   - name: imetadb
