@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import LoginCat3D from '../../components/auth/LoginCat3D'
+import RoaringLion from '../../components/auth/RoaringLion'
 import { useAuth } from '../../context/AuthContext'
 
 export default function LoginPage() {
@@ -45,7 +46,10 @@ export default function LoginPage() {
 
         <form className="login-card" onSubmit={handleSubmit}>
           <div className="login-card__header">
-            <h2>로그인</h2>
+            <div className="login-card__title-row">
+              <RoaringLion size={44} />
+              <h2>로그인</h2>
+            </div>
             <p>계정 정보를 입력하세요.</p>
           </div>
 

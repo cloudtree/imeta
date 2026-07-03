@@ -233,6 +233,89 @@
   color: var(--color-text);
 }
 
+.login-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.roaring-lion {
+  flex-shrink: 0;
+}
+
+.roaring-lion svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.roaring-lion__mane {
+  transform-origin: 50px 50px;
+  animation: lionManeShake 0.55s ease-in-out infinite;
+}
+
+.roaring-lion__jaw {
+  transform-origin: 50px 62px;
+  animation: lionRoarJaw 0.55s ease-in-out infinite;
+}
+
+.roaring-lion__tongue {
+  transform-origin: 50px 64px;
+  animation: lionRoarTongue 0.55s ease-in-out infinite;
+}
+
+.roaring-lion__waves path {
+  opacity: 0;
+  animation: lionRoarWave 0.55s ease-out infinite;
+}
+
+.roaring-lion__waves path:nth-child(2),
+.roaring-lion__waves path:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.roaring-lion__ear--left {
+  transform-origin: 28px 34px;
+  animation: lionEarLeft 0.55s ease-in-out infinite;
+}
+
+.roaring-lion__ear--right {
+  transform-origin: 72px 34px;
+  animation: lionEarRight 0.55s ease-in-out infinite;
+}
+
+@keyframes lionRoarJaw {
+  0%, 100% { transform: scaleY(0.45); }
+  35%, 65% { transform: scaleY(1.08); }
+}
+
+@keyframes lionRoarTongue {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.45; }
+  35%, 65% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes lionManeShake {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-2deg) scale(1.03); }
+  75% { transform: rotate(2deg) scale(1.03); }
+}
+
+@keyframes lionRoarWave {
+  0% { opacity: 0; transform: scale(0.7); }
+  35% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes lionEarLeft {
+  0%, 100% { transform: rotate(0deg); }
+  35%, 65% { transform: rotate(-8deg); }
+}
+
+@keyframes lionEarRight {
+  0%, 100% { transform: rotate(0deg); }
+  35%, 65% { transform: rotate(8deg); }
+}
+
 .login-card__header p {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-sm);
