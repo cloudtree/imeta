@@ -239,81 +239,104 @@
   gap: var(--space-3);
 }
 
-.roaring-lion {
+.roaring-cat {
   flex-shrink: 0;
 }
 
-.roaring-lion svg {
+.roaring-cat svg {
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.roaring-lion__mane {
-  transform-origin: 50px 50px;
-  animation: lionManeShake 0.55s ease-in-out infinite;
+.roaring-cat__body {
+  transform-origin: 50px 58px;
+  animation: catBodyBounce 0.7s ease-in-out infinite;
 }
 
-.roaring-lion__jaw {
-  transform-origin: 50px 62px;
-  animation: lionRoarJaw 0.55s ease-in-out infinite;
+.roaring-cat__jaw {
+  transform-origin: 50px 66px;
+  animation: catRoarJaw 0.7s ease-in-out infinite;
 }
 
-.roaring-lion__tongue {
-  transform-origin: 50px 64px;
-  animation: lionRoarTongue 0.55s ease-in-out infinite;
+.roaring-cat__tongue {
+  transform-origin: 50px 68px;
+  animation: catRoarTongue 0.7s ease-in-out infinite;
 }
 
-.roaring-lion__waves path {
+.roaring-cat__ear--left {
+  transform-origin: 22px 28px;
+  animation: catEarLeft 0.7s ease-in-out infinite;
+}
+
+.roaring-cat__ear--right {
+  transform-origin: 78px 28px;
+  animation: catEarRight 0.7s ease-in-out infinite;
+}
+
+.roaring-cat__eye--left,
+.roaring-cat__eye--right {
+  animation: catEyeSquint 0.7s ease-in-out infinite;
+}
+
+.roaring-cat__whiskers line {
+  animation: catWhiskerVibe 0.12s ease-in-out infinite alternate;
+}
+
+.roaring-cat__whiskers--right line {
+  animation-delay: 0.06s;
+}
+
+.roaring-cat__waves text,
+.roaring-cat__waves path {
   opacity: 0;
-  animation: lionRoarWave 0.55s ease-out infinite;
+  animation: catRoarPop 0.7s ease-out infinite;
 }
 
-.roaring-lion__waves path:nth-child(2),
-.roaring-lion__waves path:nth-child(4) {
-  animation-delay: 0.12s;
+.roaring-cat__waves text:nth-child(2),
+.roaring-cat__waves path:nth-child(4) {
+  animation-delay: 0.15s;
 }
 
-.roaring-lion__ear--left {
-  transform-origin: 28px 34px;
-  animation: lionEarLeft 0.55s ease-in-out infinite;
+@keyframes catRoarJaw {
+  0%, 100% { transform: scaleY(0.35); }
+  40%, 60% { transform: scaleY(1.05); }
 }
 
-.roaring-lion__ear--right {
-  transform-origin: 72px 34px;
-  animation: lionEarRight 0.55s ease-in-out infinite;
+@keyframes catRoarTongue {
+  0%, 100% { transform: scaleY(0.2); opacity: 0.4; }
+  40%, 60% { transform: scaleY(1); opacity: 1; }
 }
 
-@keyframes lionRoarJaw {
-  0%, 100% { transform: scaleY(0.45); }
-  35%, 65% { transform: scaleY(1.08); }
+@keyframes catBodyBounce {
+  0%, 100% { transform: scale(1) translateY(0); }
+  40%, 60% { transform: scale(1.04) translateY(-1px); }
 }
 
-@keyframes lionRoarTongue {
-  0%, 100% { transform: scaleY(0.35); opacity: 0.45; }
-  35%, 65% { transform: scaleY(1); opacity: 1; }
+@keyframes catRoarPop {
+  0% { opacity: 0; transform: translateY(4px) scale(0.7); }
+  35% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-6px) scale(1.15); }
 }
 
-@keyframes lionManeShake {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-2deg) scale(1.03); }
-  75% { transform: rotate(2deg) scale(1.03); }
-}
-
-@keyframes lionRoarWave {
-  0% { opacity: 0; transform: scale(0.7); }
-  35% { opacity: 0.9; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.25); }
-}
-
-@keyframes lionEarLeft {
+@keyframes catEarLeft {
   0%, 100% { transform: rotate(0deg); }
-  35%, 65% { transform: rotate(-8deg); }
+  40%, 60% { transform: rotate(-10deg); }
 }
 
-@keyframes lionEarRight {
+@keyframes catEarRight {
   0%, 100% { transform: rotate(0deg); }
-  35%, 65% { transform: rotate(8deg); }
+  40%, 60% { transform: rotate(10deg); }
+}
+
+@keyframes catEyeSquint {
+  0%, 100% { transform: scaleY(1); }
+  40%, 60% { transform: scaleY(0.72); }
+}
+
+@keyframes catWhiskerVibe {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(2deg); }
 }
 
 .login-card__header p {
