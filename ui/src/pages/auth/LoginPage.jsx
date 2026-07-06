@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import LoginAsciiBackground from '../../components/auth/LoginAsciiBackground'
 import RoaringCat from '../../components/auth/RoaringCat'
@@ -15,6 +15,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    setUsername('')
+    setPassword('')
+    setError('')
+  }, [])
+
   if (isAuthenticated) {
     return <Navigate to={from} replace />
   }
@@ -25,6 +31,8 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(username.trim(), password)
+      setUsername('')
+      setPassword('')
       navigate(from, { replace: true })
     } catch (err) {
       setError(err.message || '로그인에 실패했습니다.')
@@ -44,7 +52,7 @@ export default function LoginPage() {
           <p className="login-page__desc">표준 단어 · 용어 · 도메인을 한곳에서 관리합니다.</p>
         </section>
 
-        <form className="login-terminal" onSubmit={handleSubmit}>
+        <form className="login-terminal" onSubmit={handleSubmit} autoComplete="off">
           <div className="login-terminal__header">
             <div className="login-card__title-row">
               <RoaringCat size={40} />
@@ -59,9 +67,12 @@ export default function LoginPage() {
             <span>username</span>
             <input
               type="text"
+              name="imeta-username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
+              autoComplete="off"
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readonly')}
               required
             />
           </label>
@@ -70,9 +81,12 @@ export default function LoginPage() {
             <span>password</span>
             <input
               type="password"
+              name="imeta-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete="new-password"
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readonly')}
               required
             />
           </label>
