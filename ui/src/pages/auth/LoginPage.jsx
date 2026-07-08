@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import LoginAsciiBackground from '../../components/auth/LoginAsciiBackground'
 import RoaringCat from '../../components/auth/RoaringCat'
 import { useAuth } from '../../context/AuthContext'
+import './LoginPage.css'
 
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth()
@@ -54,7 +55,7 @@ export default function LoginPage() {
 
         <form className="login-terminal" onSubmit={handleSubmit} autoComplete="off">
           <div className="login-terminal__header">
-            <div className="login-card__title-row">
+            <div className="login-page__title-row">
               <RoaringCat size={40} />
               <h2>login</h2>
             </div>

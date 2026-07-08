@@ -1,5 +1,4 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import LoginAsciiBackground from './LoginAsciiBackground'
 import { useAuth } from '../../context/AuthContext'
 
 export default function ProtectedRoute() {
@@ -8,14 +7,9 @@ export default function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="login-page">
-        <LoginAsciiBackground />
-        <div className="login-page__layout">
-          <div className="login-card">
-            <span className="spinner" />
-            <p>checking session...</p>
-          </div>
-        </div>
+      <div className="auth-check">
+        <span className="spinner" />
+        <p>세션 확인 중...</p>
       </div>
     )
   }

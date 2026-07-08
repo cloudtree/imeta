@@ -147,17 +147,6 @@ async function main() {
   await setEnvVar(apiService.id, 'NODE_ENV', 'production')
   await setEnvVar(apiService.id, 'CORS_ORIGIN', uiUrl)
 
-  if (process.env.GOOGLE_AI_API_KEY?.trim()) {
-    await setEnvVar(apiService.id, 'GOOGLE_AI_API_KEY', process.env.GOOGLE_AI_API_KEY.trim())
-    await setEnvVar(
-      apiService.id,
-      'GOOGLE_AI_MODEL',
-      process.env.GOOGLE_AI_MODEL?.trim() || 'gemini-2.5-flash',
-    )
-  } else {
-    console.log('  (GOOGLE_AI_API_KEY 없음 — .env에 있으면 자동 설정)')
-  }
-
   console.log('\nUI 환경 변수 설정...')
   await setEnvVar(uiService.id, 'VITE_API_URL', apiUrl)
 

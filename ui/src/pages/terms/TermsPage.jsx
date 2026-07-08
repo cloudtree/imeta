@@ -278,7 +278,7 @@ export default function TermsPage() {
           }
         >
           {formError && <div className="alert alert-error">{formError}</div>}
-          <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} descAutoFill={modalMode === 'create'} />
+          <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} />
         </Modal>
       )}
 

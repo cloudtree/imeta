@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { domainsApi } from '../../api/domains'
 import { wordsApi } from '../../api/words'
-import { termsApi } from '../../api/terms'
 import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/SubjectAreaSelect'
 import {
   normalizeLogicalTerm,
@@ -26,14 +25,9 @@ const EMPTY = {
 
 const DATA_TYPES = ['VARCHAR', 'CHAR', 'NUMBER', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'CLOB']
 
-export default function TermForm({ value, onChange, words: wordsProp, domains: domainsProp, descAutoFill = false }) {
+export default function TermForm({ value, onChange, words: wordsProp, domains: domainsProp }) {
   const [domainsLocal, setDomainsLocal] = useState([])
   const [wordsLocal,   setWordsLocal]   = useState([])
-  const [descLoading,  setDescLoading]  = useState(false)
-  const [descError,    setDescError]    = useState(null)
-  const descSeq = useRef(0)
-  const valueRef = useRef(value)
-  valueRef.current = value
 
   const words   = wordsProp   ?? wordsLocal
   const domains = domainsProp ?? domainsLocal
@@ -48,35 +42,6 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
       .then((res) => setWordsLocal(Array.isArray(res) ? res : (res.items ?? [])))
       .catch(() => {})
   }, [wordsProp, domainsProp])
-
-  // 논리명 입력 시 Google AI → 설명 자동 입력 (등록 화면만)
-  useEffect(() => {
-    if (!descAutoFill) return undefined
-
-    const term = value.logical_term?.trim()
-    if (!term) {
-      setDescError(null)
-      return undefined
-    }
-
-    const seq = ++descSeq.current
-    const timer = setTimeout(async () => {
-      setDescLoading(true)
-      setDescError(null)
-      try {
-        const result = await termsApi.lookupDesc(term)
-        if (seq !== descSeq.current) return
-        onChange({ ...valueRef.current, term_desc: result.definition })
-      } catch (err) {
-        if (seq !== descSeq.current) return
-        setDescError(err.message ?? '설명 조회 실패')
-      } finally {
-        if (seq === descSeq.current) setDescLoading(false)
-      }
-    }, 400)
-
-    return () => clearTimeout(timer)
-  }, [value.logical_term, descAutoFill]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value })
 
@@ -563,13 +528,8 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
       </div>
 
       <div className="form-group">
-        <label className="form-label">설명
-          {descLoading && <span className="spinner" style={{ marginLeft: 8, width: 14, height: 14 }} />}
-        </label>
-        <textarea className="form-control" value={value.term_desc} onChange={set('term_desc')} placeholder="논리명 입력 시 Google AI가 간단한 정의를 자동 입력합니다." rows={3} />
-        {descError && (
-          <span className="form-hint" style={{ color: '#ef4444' }}>{descError}</span>
-        )}
+        <label className="form-label">설명</label>
+        <textarea className="form-control" value={value.term_desc} onChange={set('term_desc')} placeholder="용어 설명을 입력하세요." rows={3} />
       </div>
     </>
   )
