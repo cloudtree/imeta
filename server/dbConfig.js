@@ -168,6 +168,11 @@ export function describeDbTarget() {
   }
 }
 
+export function resolveSslForHost(host, sslEnabled = 'Y') {
+  if (sslEnabled === 'N' || sslEnabled === 'n') return undefined
+  return resolveSsl(host)
+}
+
 export function getPgConfig() {
   const databaseUrl = pickDatabaseUrl()
   if (databaseUrl) return configFromUrl(databaseUrl)

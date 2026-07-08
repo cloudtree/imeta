@@ -17,7 +17,7 @@ const BULK_BATCH_SIZE = 15
  *   onClose      - 닫기 콜백
  *   onDone       - 등록 완료 후 목록 갱신 콜백
  */
-export default function ExcelUploadModal({ title, columns, rowDefaults = {}, validateRow, onUpload, onClose, onDone }) {
+export default function ExcelUploadModal({ title, columns, rowDefaults = {}, exampleRows = null, validateRow, onUpload, onClose, onDone }) {
   const inputRef  = useRef(null)
   const [step,    setStep]    = useState('idle')   // idle | preview | result
   const [rows,    setRows]    = useState([])
@@ -30,11 +30,12 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
   // 템플릿 다운로드
   const downloadTemplate = () => {
     // 헤더: 필수 항목은 컬럼명 뒤에 * 표기
-    const header = columns.map((c) => c.required ? `${c.label} *` : c.label)
-    // 예시 행
-    const example = columns.map((c) => c.example ?? '')
+    const header = columns.map((c) => (c.required ? `${c.label} *` : c.label))
+    const templateExamples = exampleRows?.length
+      ? exampleRows.map((row) => columns.map((col) => String(row[col.key] ?? '')))
+      : [columns.map((c) => c.example ?? '')]
 
-    const ws = XLSX.utils.aoa_to_sheet([header, example])
+    const ws = XLSX.utils.aoa_to_sheet([header, ...templateExamples])
     ws['!cols'] = columns.map(() => ({ wch: 22 }))
 
     // 헤더 행 스타일 - 노란 바탕, 필수는 빨간 글씨 / 선택은 검정 글씨
@@ -51,14 +52,15 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
       }
     })
 
-    // 예시 행 스타일 (회색 이탤릭)
-    columns.forEach((_, i) => {
-      const cellRef = XLSX.utils.encode_cell({ r: 1, c: i })
-      if (!ws[cellRef]) return
-      ws[cellRef].s = {
-        font: { italic: true, color: { rgb: '808080' } },
-        fill: { fgColor: { rgb: 'F5F5F5' } },
-      }
+    templateExamples.forEach((exampleRow, rowIndex) => {
+      columns.forEach((_, i) => {
+        const cellRef = XLSX.utils.encode_cell({ r: rowIndex + 1, c: i })
+        if (!ws[cellRef]) return
+        ws[cellRef].s = {
+          font: { italic: true, color: { rgb: '808080' } },
+          fill: { fgColor: { rgb: 'F5F5F5' } },
+        }
+      })
     })
 
     const wb = XLSX.utils.book_new()
@@ -67,9 +69,11 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
     // 텍스트 형식 컬럼 — 엑셀이 111,111 등을 숫자로 변환하지 않도록
     columns.forEach((col, i) => {
       if (!col.asText) return
-      const cellRef = XLSX.utils.encode_cell({ r: 1, c: i })
-      const text    = String(col.example ?? '')
-      ws[cellRef]   = { t: 's', v: text, w: text }
+      templateExamples.forEach((exampleRow, rowIndex) => {
+        const cellRef = XLSX.utils.encode_cell({ r: rowIndex + 1, c: i })
+        const text = String(exampleRow[i] ?? '')
+        ws[cellRef] = { t: 's', v: text, w: text }
+      })
     })
 
     XLSX.writeFile(wb, `${title}_등록양식.xlsx`)
@@ -85,8 +89,12 @@ export default function ExcelUploadModal({ title, columns, rowDefaults = {}, val
       if (raw.length < 2) { alert('데이터가 없습니다. 헤더 아래에 데이터를 입력하세요.'); return }
 
       // 예시 행 감지: 모든 컬럼의 example 값과 일치하면 건너뜀
-      const exampleValues = columns.map((c) => String(c.example ?? ''))
-      const isExampleRow  = (r) => columns.every((c, i) => String(r[i] ?? '').trim() === exampleValues[i])
+      const exampleValueSets = exampleRows?.length
+        ? exampleRows.map((row) => columns.map((col) => String(row[col.key] ?? '').trim()))
+        : [columns.map((c) => String(c.example ?? ''))]
+      const isExampleRow = (r) => exampleValueSets.some((exampleValues) =>
+        columns.every((c, i) => String(r[i] ?? '').trim() === exampleValues[i]),
+      )
 
       const parseSkipped = []
       const parsed = raw.slice(1)

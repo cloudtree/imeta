@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
-export default function Header() {
+export default function Header({ databaseMenuOpen, onToggleDatabaseMenu }) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
@@ -38,7 +38,15 @@ export default function Header() {
         <span>메타데이터 관리 포털</span>
       </div>
       <div className="app-header__actions">
-        <span className="app-header__user">{user?.username}</span>
+        <button
+          type="button"
+          className="app-header__user"
+          onClick={onToggleDatabaseMenu}
+          aria-expanded={databaseMenuOpen}
+          title={databaseMenuOpen ? '데이터베이스 메뉴 숨기기' : '데이터베이스 메뉴 보기'}
+        >
+          {user?.username}
+        </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>
           로그아웃
         </button>

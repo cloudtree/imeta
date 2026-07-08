@@ -7,6 +7,8 @@ import termsRouter        from './routes/terms.js'
 import domainsRouter      from './routes/domains.js'
 import subjectAreasRouter from './routes/subjectAreas.js'
 import domainGroupsRouter from './routes/domainGroups.js'
+import dbServersRouter    from './routes/dbServers.js'
+import tableDefinitionsRouter from './routes/tableDefinitions.js'
 import { requireAuth } from './middleware/requireAuth.js'
 import { migrateDomainsDataLength } from './migrateDataLength.js'
 import { describeDbTarget } from './dbConfig.js'
@@ -37,6 +39,8 @@ app.use('/api/terms',         termsRouter)
 app.use('/api/domains',       domainsRouter)
 app.use('/api/subject-areas',  subjectAreasRouter)
 app.use('/api/domain-groups',  domainGroupsRouter)
+app.use('/api/db-servers',     dbServersRouter)
+app.use('/api/table-definitions', tableDefinitionsRouter)
 
 app.use((err, _req, res, _next) => {
   if (err.type === 'entity.too.large') {

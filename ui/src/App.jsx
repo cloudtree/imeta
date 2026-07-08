@@ -8,6 +8,9 @@ import WordsPage from './pages/words/WordsPage'
 import TermsPage from './pages/terms/TermsPage'
 import DomainsPage from './pages/domains/DomainsPage'
 import SubjectAreasPage from './pages/subjectAreas/SubjectAreasPage'
+import ServerRegisterPage from './pages/database/ServerRegisterPage'
+import DatabaseReviewPage from './pages/database/DatabaseReviewPage'
+import TableDefinitionReviewPage from './pages/database/TableDefinitionReviewPage'
 
 export default function App() {
   return (
@@ -17,6 +20,9 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="/servers/register" element={<ServerRegisterPage />} />
+            <Route path="/database/review" element={<DatabaseReviewPage />} />
+            <Route path="/database/table-definition-review" element={<TableDefinitionReviewPage />} />
             <Route path="/subject-areas" element={<SubjectAreasPage />} />
             <Route path="/words" element={<WordsPage />} />
             <Route path="/terms" element={<TermsPage />} />
