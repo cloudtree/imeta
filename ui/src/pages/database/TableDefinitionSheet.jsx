@@ -70,7 +70,7 @@ export default function TableDefinitionSheet({
         <DataTable
           columns={FILTERED_DEFINITION_COLUMNS}
           rows={rows}
-          rowKey="def_id"
+          rowKey="table_def_id"
           showRowNumber
           selectable
           selected={selected}

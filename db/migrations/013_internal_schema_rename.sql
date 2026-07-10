@@ -1,0 +1,6 @@
+-- 013_internal_schema_rename.sql
+-- 참고용: 실제 적용은 서버 기동 시 migrateInternalSchemaRename.js 가 수행한다.
+-- 예)
+--   ALTER TABLE words RENAME TO meta_std_word_m;
+--   ALTER TABLE meta_std_word_m RENAME COLUMN word_id TO std_word_id;
+-- 전체 매핑은 server/metaSchema.js 및 docs/internal-schema-rename.md 참고.

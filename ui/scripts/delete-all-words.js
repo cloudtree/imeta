@@ -1,5 +1,5 @@
 /**
- * 표준 단어(words) 전체 삭제
+ * 표준 단어(meta_std_word_m) 전체 삭제
  * node scripts/delete-all-words.js --yes
  */
 import readline from 'readline'
@@ -28,8 +28,8 @@ function ask(question) {
 }
 
 async function main() {
-  const { rows: [{ count }] } = await pool.query('SELECT COUNT(*)::int AS count FROM words')
-  const { rows: [{ count: termCount }] } = await pool.query('SELECT COUNT(*)::int AS count FROM terms')
+  const { rows: [{ count }] } = await pool.query('SELECT COUNT(*)::int AS count FROM meta_std_word_m')
+  const { rows: [{ count: termCount }] } = await pool.query('SELECT COUNT(*)::int AS count FROM meta_std_term_m')
 
   if (count === 0) {
     console.log('삭제할 표준 단어가 없습니다.')
@@ -54,7 +54,7 @@ async function main() {
     }
   }
 
-  await pool.query('TRUNCATE TABLE words RESTART IDENTITY')
+  await pool.query('TRUNCATE TABLE meta_std_word_m RESTART IDENTITY CASCADE')
   console.log(`\n표준 단어 ${count}건 삭제 완료.`)
   await pool.end()
 }

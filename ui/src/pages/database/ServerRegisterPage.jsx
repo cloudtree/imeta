@@ -16,6 +16,7 @@ import {
   reviewSelectedDefinitions,
   summarizeStandardReviewGroups,
 } from './standardReviewUtils'
+import { mapIntrospectionDefinitionRows } from './mapIntrospectionRow'
 
 const PAGE_SIZE = 50
 
@@ -56,10 +57,10 @@ export default function ServerRegisterPage() {
     const q = search.toLowerCase()
     return data.filter(
       (row) =>
-        row.server_name?.toLowerCase().includes(q) ||
-        row.host?.toLowerCase().includes(q) ||
-        row.database_name?.toLowerCase().includes(q) ||
-        row.username?.toLowerCase().includes(q),
+        row.db_server_nm?.toLowerCase().includes(q) ||
+        row.host_nm?.toLowerCase().includes(q) ||
+        row.database_nm?.toLowerCase().includes(q) ||
+        row.user_nm?.toLowerCase().includes(q),
     )
   }, [data, search])
 
@@ -69,18 +70,20 @@ export default function ServerRegisterPage() {
   }, [filtered, page])
 
   const handleQualityReview = useCallback(async (server) => {
-    if (!server?.server_id) return
-    setReviewingId(server.server_id)
+    if (!server?.db_server_id) return
+    setReviewingId(server.db_server_id)
     setReportError(null)
     try {
       const [schemaRes, wordsRes, termsRes, domainsRes] = await Promise.all([
-        dbServersApi.getSchemaDefinitions(server.server_id),
+        dbServersApi.getSchemaDefinitions(server.db_server_id),
         wordsApi.dictionary(),
         termsApi.getAll({ limit: 10000, use_yn: 'Y' }),
         domainsApi.getAll({ limit: 10000, use_yn: 'Y' }),
       ])
 
-      const defs = Array.isArray(schemaRes) ? schemaRes : (schemaRes.items ?? [])
+      const defs = mapIntrospectionDefinitionRows(
+        Array.isArray(schemaRes) ? schemaRes : (schemaRes.items ?? []),
+      )
       if (!defs.length) {
         throw new Error('검토할 스키마 정의가 없습니다. 연결 상태와 권한을 확인하세요.')
       }
@@ -109,13 +112,13 @@ export default function ServerRegisterPage() {
 
   const columns = useMemo(
     () => [
-      { key: 'server_name', label: '서버명', sortable: true },
-      { key: 'host', label: '호스트', sortable: true },
-      { key: 'port', label: '포트' },
-      { key: 'database_name', label: 'DB명', sortable: true },
-      { key: 'username', label: '사용자' },
+      { key: 'db_server_nm', label: '서버명', sortable: true },
+      { key: 'host_nm', label: '호스트', sortable: true },
+      { key: 'port_no', label: '포트' },
+      { key: 'database_nm', label: 'DB명', sortable: true },
+      { key: 'user_nm', label: '사용자' },
       {
-        key: 'last_test_ok',
+        key: 'last_test_yn',
         label: '연결상태',
         render: (v) => <ConnectionStatus value={v} />,
       },
@@ -127,17 +130,17 @@ export default function ServerRegisterPage() {
             <button
               type="button"
               className="server-review-btn"
-              disabled={reviewingId === row.server_id}
+              disabled={reviewingId === row.db_server_id}
               onClick={() => handleQualityReview(row)}
             >
-              {reviewingId === row.server_id ? <span className="spinner" /> : null}
+              {reviewingId === row.db_server_id ? <span className="spinner" /> : null}
               검토보고서
             </button>
           </div>
         ),
       },
       {
-        key: 'last_test_at',
+        key: 'last_test_dtm',
         label: '마지막 확인',
         render: (v) => formatDateTime(v),
       },
@@ -161,7 +164,7 @@ export default function ServerRegisterPage() {
 
   const openEdit = (row) => {
     setSelectedRow(row)
-    setFormValue({ ...row, password: '' })
+    setFormValue({ ...row, password_val: '' })
     setFormError(null)
     setTestResult(null)
     setModalMode('edit')
@@ -174,12 +177,12 @@ export default function ServerRegisterPage() {
   }
 
   const validate = (value, isEdit) => {
-    if (!value.server_name?.trim()) return '서버명을 입력하세요.'
-    if (!value.host?.trim()) return '호스트를 입력하세요.'
-    if (!value.database_name?.trim()) return '데이터베이스명을 입력하세요.'
-    if (!value.username?.trim()) return '사용자명을 입력하세요.'
-    if (!isEdit && !value.password) return '비밀번호를 입력하세요.'
-    const portNum = Number(value.port)
+    if (!value.db_server_nm?.trim()) return '서버명을 입력하세요.'
+    if (!value.host_nm?.trim()) return '호스트를 입력하세요.'
+    if (!value.database_nm?.trim()) return '데이터베이스명을 입력하세요.'
+    if (!value.user_nm?.trim()) return '사용자명을 입력하세요.'
+    if (!isEdit && !value.password_val) return '비밀번호를 입력하세요.'
+    const portNum = Number(value.port_no)
     if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
       return '포트는 1~65535 사이의 정수여야 합니다.'
     }
@@ -193,12 +196,12 @@ export default function ServerRegisterPage() {
       setFormError(err)
       return
     }
-    if (isEdit && !formValue.password) {
+    if (isEdit && !formValue.password_val) {
       setTesting(true)
       setFormError(null)
       setTestResult(null)
       try {
-        const result = await dbServersApi.testById(selectedRow.server_id)
+        const result = await dbServersApi.testById(selectedRow.db_server_id)
         setTestResult(result)
         await refetch()
       } catch (e) {
@@ -234,12 +237,12 @@ export default function ServerRegisterPage() {
     setFormError(null)
     try {
       const payload = { ...formValue }
-      if (isEdit && !payload.password) delete payload.password
+      if (isEdit && !payload.password_val) delete payload.password_val
 
       if (modalMode === 'create') {
         await create(payload)
       } else {
-        await update(selectedRow.server_id, payload)
+        await update(selectedRow.db_server_id, payload)
       }
       closeModal()
     } catch (e) {
@@ -252,7 +255,7 @@ export default function ServerRegisterPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.server_id)
+      await remove(deleteTarget.db_server_id)
       setDeleteTarget(null)
     } catch (e) {
       alert(e.message)
@@ -305,7 +308,7 @@ export default function ServerRegisterPage() {
           <DataTable
             columns={columns}
             rows={paged}
-            rowKey="server_id"
+            rowKey="db_server_id"
             onRowClick={openEdit}
             emptyText="등록된 DB 서버가 없습니다."
           />
@@ -350,7 +353,7 @@ export default function ServerRegisterPage() {
       {deleteTarget && (
         <ConfirmDialog
           title="서버 삭제"
-          message={`"${deleteTarget.server_name}" 서버를 삭제하시겠습니까?`}
+          message={`"${deleteTarget.db_server_nm}" 서버를 삭제하시겠습니까?`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}

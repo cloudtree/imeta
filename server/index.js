@@ -11,9 +11,18 @@ import dbServersRouter    from './routes/dbServers.js'
 import tableDefinitionsRouter from './routes/tableDefinitions.js'
 import activityRouter from './routes/activity.js'
 import usersRouter from './routes/users.js'
+import dataObjectsRouter from './routes/dataObjects.js'
+import metaSystemsRouter from './routes/metaSystems.js'
+import namingRulesRouter from './routes/namingRules.js'
 import { requireAuth, requireAdmin } from './middleware/requireAuth.js'
 import { migrateDomainsDataLength } from './migrateDataLength.js'
 import { migrateUsers } from './migrateUsers.js'
+import { migrateDataObjects } from './migrateDataObjects.js'
+import { migrateNamingRules } from './migrateNamingRules.js'
+import { migrateSubjectAreaSystem } from './migrateSubjectAreaSystem.js'
+import { migrateInternalComments } from './migrateInternalComments.js'
+import { migrateInternalSchemaRename } from './migrateInternalSchemaRename.js'
+import { migrateDropCompatViews } from './migrateDropCompatViews.js'
 import { describeDbTarget } from './dbConfig.js'
 import { pool } from './db.js'
 
@@ -46,6 +55,9 @@ app.use('/api/db-servers',     dbServersRouter)
 app.use('/api/table-definitions', tableDefinitionsRouter)
 app.use('/api/activity', activityRouter)
 app.use('/api/users', requireAdmin, usersRouter)
+app.use('/api/data-objects', requireAdmin, dataObjectsRouter)
+app.use('/api/meta-systems', metaSystemsRouter)
+app.use('/api/naming-rules', requireAdmin, namingRulesRouter)
 
 app.use((err, _req, res, _next) => {
   if (err.type === 'entity.too.large') {
@@ -63,8 +75,19 @@ app.listen(PORT, async () => {
     const target = describeDbTarget()
     console.log(`[db] source=${target.source} host=${target.host} database=${target.database} user=${target.user}`)
     await pool.query('SELECT 1')
+    // 1) 기존 스키마 컬럼 타입 보정
     await migrateDomainsDataLength()
+    // 2) 표준 물리명으로 테이블/컬럼 RENAME
+    await migrateInternalSchemaRename()
+    // 3) 신규 환경용 DDL (신 물리명)
     await migrateUsers()
+    await migrateDataObjects()
+    await migrateNamingRules()
+    await migrateSubjectAreaSystem()
+    // 4) 구 호환 VIEW 제거 (API/UI 표준 물리명 전환)
+    await migrateDropCompatViews()
+    // 5) COMMENT + 표준사전 시드
+    await migrateInternalComments()
     console.log(`Server running on port ${PORT}`)
   } catch (err) {
     console.error('[startup] failed:', err.message)

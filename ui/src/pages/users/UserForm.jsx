@@ -1,9 +1,9 @@
 const EMPTY = {
-  username: '',
+  login_id: '',
   password: '',
   password_confirm: '',
   user_nm: '',
-  email: '',
+  email_nm: '',
   dept_nm: '',
   role_cd: 'USER',
   use_yn: 'Y',
@@ -19,8 +19,8 @@ export default function UserForm({ value, onChange, isEdit = false }) {
           <label className="form-label required">사용자 ID</label>
           <input
             className="form-control"
-            value={value.username}
-            onChange={set('username')}
+            value={value.login_id}
+            onChange={set('login_id')}
             placeholder="예: hong.gildong"
             maxLength={50}
             autoComplete="off"
@@ -74,8 +74,8 @@ export default function UserForm({ value, onChange, isEdit = false }) {
           <input
             type="email"
             className="form-control"
-            value={value.email}
-            onChange={set('email')}
+            value={value.email_nm}
+            onChange={set('email_nm')}
             placeholder="예: user@company.com"
             maxLength={200}
           />

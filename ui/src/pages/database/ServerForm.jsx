@@ -1,18 +1,18 @@
 const EMPTY = {
-  server_name: '',
-  host: '',
-  port: 5432,
-  database_name: '',
-  username: '',
-  password: '',
-  ssl_enabled: 'Y',
-  description: '',
+  db_server_nm: '',
+  host_nm: '',
+  port_no: 5432,
+  database_nm: '',
+  user_nm: '',
+  password_val: '',
+  ssl_yn: 'Y',
+  db_server_desc: '',
   use_yn: 'Y',
 }
 
 export default function ServerForm({ value, onChange, isEdit = false }) {
   const set = (field) => (e) => {
-    const nextValue = field === 'port' ? Number(e.target.value) : e.target.value
+    const nextValue = field === 'port_no' ? Number(e.target.value) : e.target.value
     onChange({ ...value, [field]: nextValue })
   }
 
@@ -22,8 +22,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
         <label className="form-label required">서버명</label>
         <input
           className="form-control"
-          value={value.server_name}
-          onChange={set('server_name')}
+          value={value.db_server_nm}
+          onChange={set('db_server_nm')}
           placeholder="예: 운영 PostgreSQL"
           maxLength={100}
         />
@@ -34,8 +34,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
           <label className="form-label required">호스트</label>
           <input
             className="form-control"
-            value={value.host}
-            onChange={set('host')}
+            value={value.host_nm}
+            onChange={set('host_nm')}
             placeholder="예: db.example.com"
             maxLength={255}
           />
@@ -48,8 +48,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
             type="number"
             min={1}
             max={65535}
-            value={value.port}
-            onChange={set('port')}
+            value={value.port_no}
+            onChange={set('port_no')}
           />
         </div>
       </div>
@@ -59,8 +59,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
           <label className="form-label required">데이터베이스명</label>
           <input
             className="form-control"
-            value={value.database_name}
-            onChange={set('database_name')}
+            value={value.database_nm}
+            onChange={set('database_nm')}
             placeholder="예: metadata_db"
             maxLength={100}
           />
@@ -70,8 +70,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
           <label className="form-label required">사용자명</label>
           <input
             className="form-control"
-            value={value.username}
-            onChange={set('username')}
+            value={value.user_nm}
+            onChange={set('user_nm')}
             placeholder="예: postgres"
             maxLength={100}
           />
@@ -84,8 +84,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
           <input
             className="form-control"
             type="password"
-            value={value.password}
-            onChange={set('password')}
+            value={value.password_val}
+            onChange={set('password_val')}
             placeholder={isEdit ? '변경 시에만 입력' : '비밀번호 입력'}
             autoComplete="new-password"
           />
@@ -96,7 +96,7 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
 
         <div className="form-group">
           <label className="form-label">SSL 사용</label>
-          <select className="form-control" value={value.ssl_enabled} onChange={set('ssl_enabled')}>
+          <select className="form-control" value={value.ssl_yn} onChange={set('ssl_yn')}>
             <option value="Y">Y (사용)</option>
             <option value="N">N (미사용)</option>
           </select>
@@ -115,8 +115,8 @@ export default function ServerForm({ value, onChange, isEdit = false }) {
         <label className="form-label">설명</label>
         <textarea
           className="form-control"
-          value={value.description}
-          onChange={set('description')}
+          value={value.db_server_desc}
+          onChange={set('db_server_desc')}
           placeholder="서버에 대한 설명을 입력하세요."
           rows={3}
         />

@@ -327,8 +327,8 @@ function SubjectStandardsDashboard({ subjects }) {
     () =>
       (subjects || [])
         .map((item) => ({
-          id: item.subject_id,
-          name: item.subject_name || item.subject_id,
+          id: item.subject_area_id,
+          name: item.subject_area_nm || item.subject_area_id,
           words: Number(item.word_count) || 0,
           terms: Number(item.term_count) || 0,
           domains: Number(item.domain_count) || 0,

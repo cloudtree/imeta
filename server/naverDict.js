@@ -157,7 +157,7 @@ async function fetchNaverDict(url, referer) {
 
 /**
  * 네이버 영어사전(ko→en)에서 영문명·약어 제안
- * @returns {{ word: string, all_word_nm: string, abb_word_nm: string, englishTerms: string[] }}
+ * @returns {{ word: string, full_eng_nm: string, abb_word_nm: string, englishTerms: string[] }}
  */
 export async function lookupNaverEnglishDictionary(word) {
   const q = word.trim()
@@ -189,11 +189,11 @@ export async function lookupNaverEnglishDictionary(word) {
     throw err
   }
 
-  const { all_word_nm, abb_word_nm } = buildEnglishSuggestion(englishTerms[0])
+  const { full_eng_nm, abb_word_nm } = buildEnglishSuggestion(englishTerms[0])
 
   return {
     word: normalizeEntryName(item) || q,
-    all_word_nm,
+    full_eng_nm,
     abb_word_nm,
     englishTerms,
   }

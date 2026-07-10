@@ -3,7 +3,7 @@ import { useTerms } from '../../hooks/useTerms'
 import { termsApi } from '../../api/terms'
 import { wordsApi } from '../../api/words'
 import { domainsApi } from '../../api/domains'
-import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
 import SplitDetail from '../../components/common/SplitDetail'
@@ -16,16 +16,16 @@ import TermForm from './TermForm'
 import { validateTermFields, validateTermRow, normalizeDataLenValue } from '../../utils/termValidation'
 
 const EXCEL_COLUMNS = [
-  { key: 'subject_id',    label: '주제영역ID',    required: false, example: 'STD01' },
-  { key: 'logical_term',  label: '논리명',        required: true,  example: '고객번호'       },
-  { key: 'physical_term', label: '물리명',        required: true,  example: 'CUST_NO'      },
-  { key: 'domain_div_cd', label: '도메인그룹명',   required: false, example: '명칭'          },
-  { key: 'infotype',      label: '도메인 인포타입', required: false, example: '이름VC100'    },
-  { key: 'data_type',     label: '데이터타입',    required: true,  example: 'VARCHAR'      },
+  { key: 'subject_area_id',    label: '주제영역ID',    required: false, example: 'STD01' },
+  { key: 'logical_term_nm',  label: '논리명',        required: true,  example: '고객번호'       },
+  { key: 'physical_term_nm', label: '물리명',        required: true,  example: 'CUST_NO'      },
+  { key: 'domain_group_nm', label: '도메인그룹명',   required: false, example: '명칭'          },
+  { key: 'info_type_nm',      label: '도메인 인포타입', required: false, example: '이름VC100'    },
+  { key: 'data_type_nm',     label: '데이터타입',    required: true,  example: 'VARCHAR'      },
   { key: 'data_len',      label: '데이터길이',    required: true,  example: '100 또는 7,2', asText: true,
-    normalize: (v, row) => normalizeDataLenValue(v, row?.data_type, row?.data_scale) },
+    normalize: (v, row) => normalizeDataLenValue(v, row?.data_type_nm, row?.data_scale) },
   { key: 'use_yn',        label: '사용여부',      required: false, example: 'Y'            },
-  { key: 'term_desc',     label: '설명',          required: false, example: '고객을 식별하는 고유 번호' },
+  { key: 'std_term_desc',     label: '설명',          required: false, example: '고객을 식별하는 고유 번호' },
 ]
 
 const PAGE_SIZE = 50
@@ -66,7 +66,7 @@ export default function TermsPage() {
   const listParams = useMemo(() => ({
     page,
     limit: PAGE_SIZE,
-    ...(subjectFilter ? { subject_id: subjectFilter } : {}),
+    ...parseSubjectNavFilter(subjectFilter),
     ...(search.trim() ? { search: search.trim() } : {}),
   }), [page, subjectFilter, search])
 
@@ -106,7 +106,7 @@ export default function TermsPage() {
 
   const validate = (v) => {
     const { firstError } = validateTermFields(
-      { ...v, term_id: selectedRow?.term_id ?? null },
+      { ...v, std_term_id: selectedRow?.std_term_id ?? null },
       { words, domains, existingTerms: allTerms, requireDomainGroup: true },
     )
     return firstError
@@ -123,7 +123,7 @@ export default function TermsPage() {
         await create(payload)
         closePanel()
       } else {
-        await update(selectedRow.term_id, payload)
+        await update(selectedRow.std_term_id, payload)
         setSelectedRow({ ...selectedRow, ...payload })
       }
       reloadAllTerms()
@@ -141,7 +141,7 @@ export default function TermsPage() {
     try {
       await Promise.all([...selected].map((id) => termsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.term_id)) closePanel()
+      if (selectedRow && selected.has(selectedRow.std_term_id)) closePanel()
       await refetch()
       reloadAllTerms()
     } catch (e) {
@@ -173,7 +173,7 @@ export default function TermsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.term_id)
+      await remove(deleteTarget.std_term_id)
       setDeleteTarget(null)
       closePanel()
       reloadAllTerms()
@@ -185,12 +185,12 @@ export default function TermsPage() {
   }
 
   const getRow = (row) => {
-    const typeLen = [row.data_type, row.data_len].filter(Boolean).join(' ')
+    const typeLen = [row.data_type_nm, row.data_len].filter(Boolean).join(' ')
     return {
-      id: row.term_id,
-      primary: row.logical_term,
-      secondary: row.physical_term,
-      meta: [row.domain_nm || row.domain_div_cd, typeLen, row.subject_name]
+      id: row.std_term_id,
+      primary: row.logical_term_nm,
+      secondary: row.physical_term_nm,
+      meta: [row.std_domain_nm || row.domain_group_nm, typeLen, row.subject_area_nm]
         .filter(Boolean).join(' · '),
       status: row.use_yn === 'Y' ? '사용' : '미사용',
       statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
@@ -230,7 +230,7 @@ export default function TermsPage() {
         detailOpen={detailOpen}
         left={(
           <SplitNav
-            title="주제영역"
+            title="시스템 · 주제영역"
             allLabel="전체 용어"
             allCount={total}
             items={navItems}
@@ -260,7 +260,7 @@ export default function TermsPage() {
               <MetaList
                 rows={data}
                 getRow={getRow}
-                selectedId={selectedRow?.term_id}
+                selectedId={selectedRow?.std_term_id}
                 onSelect={openEdit}
                 selectable
                 selectedIds={selected}
@@ -279,8 +279,8 @@ export default function TermsPage() {
             empty={!detailOpen}
             emptyTitle="용어를 선택하세요"
             emptyHint="목록에서 용어를 클릭하면 논리·물리명, 데이터 타입, 도메인 연계 정보가 여기에 표시됩니다."
-            title={panelMode === 'create' ? '표준 용어 등록' : (formValue.logical_term || '표준 용어 수정')}
-            subtitle={panelMode === 'edit' ? (formValue.physical_term || selectedRow?.physical_term) : '새 용어 입력'}
+            title={panelMode === 'create' ? '표준 용어 등록' : (formValue.logical_term_nm || '표준 용어 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.physical_term_nm || selectedRow?.physical_term_nm) : '새 용어 입력'}
             onClose={closePanel}
             footer={(
               <>
@@ -309,7 +309,7 @@ export default function TermsPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.logical_term}" 용어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.logical_term_nm}" 용어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
@@ -329,7 +329,7 @@ export default function TermsPage() {
         <ExcelUploadModal
           title="표준용어"
           columns={EXCEL_COLUMNS}
-          rowDefaults={{ subject_id: 'STD01' }}
+          rowDefaults={{ subject_area_id: 'STD01' }}
           validateRow={(r) => validateTermRow(r, { words, domains, existingTerms: allTerms })}
           onUpload={(rows) => termsApi.bulk(rows)}
           onClose={() => setShowExcel(false)}

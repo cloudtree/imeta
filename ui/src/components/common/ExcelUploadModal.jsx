@@ -11,7 +11,7 @@ const BULK_BATCH_SIZE = 15
  * Props:
  *   title        - 모달 제목
  *   columns      - [{ key, label, required?, example }]  엑셀 컬럼 정의
- *   rowDefaults  - { key: defaultValue }  빈 값일 때 채울 기본값 (예: { subject_id: 'DEFAULT' })
+ *   rowDefaults  - { key: defaultValue }  빈 값일 때 채울 기본값 (예: { subject_area_id: 'DEFAULT' })
  *   validateRow  - (rowData) => string|null  클라이언트 사전 검증 함수 (오류 시 메시지 반환)
  *   onUpload     - async (validRows) => { success: [...], errors: [{ row, data, message }] }
  *   onClose      - 닫기 콜백

@@ -8,9 +8,9 @@ export const TYPE_ABBR = {
 export const LENGTH_TYPES = ['VARCHAR', 'CHAR', 'NUMBER', 'INTEGER']
 export const SCALE_TYPES  = ['NUMBER', 'INTEGER']
 
-export function mergeLegacyLengthScale(data_length, data_scale, data_type) {
-  const dt = data_type?.toUpperCase()
-  const lenStr = data_length != null && data_length !== '' ? String(data_length).trim() : ''
+export function mergeLegacyLengthScale(data_len, data_scale, data_type_nm) {
+  const dt = data_type_nm?.toUpperCase()
+  const lenStr = data_len != null && data_len !== '' ? String(data_len).trim() : ''
   if (!lenStr) return null
   if (lenStr.includes(',')) return lenStr
   if (SCALE_TYPES.includes(dt)) {
@@ -57,8 +57,8 @@ export function normalizeDataLengthInput(value, dataType, data_scale) {
 
 export function toFormDataLength(row) {
   if (!row) return ''
-  const dt  = row.data_type?.toUpperCase()
-  const raw = row.data_length ?? row.data_len
+  const dt  = row.data_type_nm?.toUpperCase()
+  const raw = row.data_len
   if (raw != null && String(raw).includes(',')) return String(raw).trim()
   if (SCALE_TYPES.includes(dt) && raw != null && raw !== '') {
     const sc = row.data_scale != null ? row.data_scale : 0
@@ -69,15 +69,15 @@ export function toFormDataLength(row) {
 }
 
 export function formatDataLength(value, dataType) {
-  const v = toFormDataLength({ data_type: dataType, data_length: value, data_len: value, data_scale: null })
+  const v = toFormDataLength({ data_type_nm: dataType, data_len: value, data_scale: null })
   return v || '-'
 }
 
-export function buildInfotype(domain_nm, data_type, data_length) {
-  const dt   = data_type?.toUpperCase() ?? ''
+export function buildInfotype(std_domain_nm, data_type_nm, data_len) {
+  const dt   = data_type_nm?.toUpperCase() ?? ''
   const abbr = TYPE_ABBR[dt] ?? dt.slice(0, 2)
-  const len  = data_length?.trim?.() ?? String(data_length ?? '').trim()
-  return domain_nm?.trim() ? `${domain_nm.trim()}${abbr}${len}` : ''
+  const len  = data_len?.trim?.() ?? String(data_len ?? '').trim()
+  return std_domain_nm?.trim() ? `${std_domain_nm.trim()}${abbr}${len}` : ''
 }
 
 export function validateDataLength(value, dataType, data_scale) {

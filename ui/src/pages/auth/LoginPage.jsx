@@ -11,7 +11,7 @@ export default function LoginPage() {
   const from = location.state?.from || '/'
 
   const [formOpen, setFormOpen] = useState(false)
-  const [username, setUsername] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -51,7 +51,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(username.trim(), password)
+      await login(loginId.trim(), password)
       setUsername('')
       setPassword('')
       navigate(from, { replace: true })
@@ -65,28 +65,37 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-bg" aria-hidden="true">
-        <div className="login-bg__mesh" />
-        <div className="login-bg__orb login-bg__orb--a" />
-        <div className="login-bg__orb login-bg__orb--b" />
-        <div className="login-bg__orb login-bg__orb--c" />
-        <div className="login-bg__grid" />
-        <div className="login-bg__noise" />
+        <div className="login-bg__wash" />
+        <div className="login-bg__glow login-bg__glow--a" />
+        <div className="login-bg__glow login-bg__glow--b" />
+        <div className="login-bg__grain" />
       </div>
 
       <div className="login-page__shell">
         <header className="login-page__topbar">
           <div className="login-page__brand">
-            <RoaringCat size={36} idPrefix="login-brand-cat" animated={false} />
-            <span>Meta Portal</span>
+            <RoaringCat size={42} className="login-page__brand-mark" />
+            <span className="login-page__brand-text">iMETA Portal</span>
           </div>
+          <button type="button" className="login-page__signin" onClick={openForm}>
+            Sign in
+          </button>
         </header>
 
         <section className="login-page__hero">
-          <p className="login-page__tag">Metadata Management</p>
-          <h1 className="login-page__logo">표준과 스키마를<br />한곳에서.</h1>
-          <p className="login-page__desc">
+          <div className="login-page__emblem-wrap">
+            <RoaringCat size={360} className="login-page__emblem" decorative={false} alt="iMETA Portal" />
+          </div>
+
+          <h1 className="login-page__wordmark">
+            <span className="login-page__wordmark-imeta">iMETA</span>
+            <span className="login-page__wordmark-portal">Portal</span>
+          </h1>
+
+          <p className="login-page__tagline">
             데이터 표준 · 정의서 · DB 검토를 위한 메타데이터 포털
           </p>
+
           <button type="button" className="login-page__cta" onClick={openForm}>
             시작하기
           </button>
@@ -114,10 +123,10 @@ export default function LoginPage() {
 
             <div className="login-card__header">
               <div className="login-card__brand">
-                <RoaringCat size={40} idPrefix="login-cat" />
+                <RoaringCat size={72} className="login-card__logo" />
                 <div>
                   <h2 id="login-modal-title" className="login-card__title">Sign in</h2>
-                  <p className="login-card__subtitle">계정으로 계속하기</p>
+                  <p className="login-card__subtitle">iMETA Portal 계정으로 계속하기</p>
                 </div>
               </div>
             </div>
@@ -129,13 +138,13 @@ export default function LoginPage() {
             )}
 
             <label className="login-card__field">
-              <span>사용자 이름</span>
+              <span>로그인ID</span>
               <input
                 type="text"
-                name="imeta-username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="username"
+                name="imeta-login-id"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                placeholder="로그인ID"
                 autoComplete="off"
                 autoFocus
                 readOnly

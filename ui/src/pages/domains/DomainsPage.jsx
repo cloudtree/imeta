@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useDomains } from '../../hooks/useDomains'
-import { wordsApi } from '../../api/words'
 import { domainsApi } from '../../api/domains'
 import { domainGroupsApi } from '../../api/domainGroups'
-import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
 import SplitDetail from '../../components/common/SplitDetail'
@@ -23,17 +22,17 @@ import {
 } from '../../utils/domainInfotype'
 
 const EXCEL_COLUMNS = [
-  { key: 'subject_id',    label: '주제영역ID',    required: false, example: 'STD01' },
-  { key: 'info_type',     label: '도메인그룹명',  required: true,  example: '명칭'          },
-  { key: 'domain_nm',     label: '도메인명',      required: true,  example: '이름'          },
-  { key: 'data_type',     label: '데이터타입',    required: true,  example: 'VARCHAR'      },
-  { key: 'data_length',   label: '데이터길이',    required: false, example: '100 또는 7,2', asText: true,
+  { key: 'subject_area_id',    label: '주제영역ID',    required: false, example: 'STD01' },
+  { key: 'domain_group_nm',     label: '도메인그룹명',  required: true,  example: '명칭'          },
+  { key: 'std_domain_nm',     label: '도메인명',      required: true,  example: '이름'          },
+  { key: 'data_type_nm',     label: '데이터타입',    required: true,  example: 'VARCHAR'      },
+  { key: 'data_len',   label: '데이터길이',    required: false, example: '100 또는 7,2', asText: true,
     normalize: (v, row) => normalizeDataLengthInput(
-      mergeLegacyLengthScale(v, row?.data_scale, row?.data_type?.trim().toUpperCase()) ?? v,
-      row?.data_type,
+      mergeLegacyLengthScale(v, row?.data_scale, row?.data_type_nm?.trim().toUpperCase()) ?? v,
+      row?.data_type_nm,
     ) },
   { key: 'use_yn',        label: '사용여부',      required: false, example: 'Y'            },
-  { key: 'domain_desc',   label: '설명',          required: false, example: '사람 또는 사물의 이름' },
+  { key: 'std_domain_desc',   label: '설명',          required: false, example: '사람 또는 사물의 이름' },
 ]
 
 const PAGE_SIZE = 50
@@ -49,13 +48,12 @@ export default function DomainsPage() {
   const [subjectFilter, setSubjectFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [words, setWords] = useState([])
   const [allDomains, setAllDomains] = useState([])
   const { navItems } = useSubjectAreaNav()
 
   const [groups, setGroups] = useState([])
   const [showGroupModal, setShowGroupModal] = useState(false)
-  const [groupForm, setGroupForm] = useState({ group_nm: '', group_desc: '', use_yn: 'Y' })
+  const [groupForm, setGroupForm] = useState({ domain_group_nm: '', domain_group_desc: '', use_yn: 'Y' })
   const [editingGroup, setEditingGroup] = useState(null)
   const [groupError, setGroupError] = useState(null)
   const [groupSaving, setGroupSaving] = useState(false)
@@ -74,9 +72,6 @@ export default function DomainsPage() {
   }, [])
 
   useEffect(() => {
-    wordsApi.getAll({ limit: 1000 })
-      .then((res) => setWords(Array.isArray(res) ? res : (res.items ?? [])))
-      .catch(() => {})
     loadGroups()
     reloadAllDomains()
   }, [loadGroups, reloadAllDomains])
@@ -84,8 +79,8 @@ export default function DomainsPage() {
   const listParams = useMemo(() => ({
     page,
     limit: PAGE_SIZE,
-    ...(subjectFilter ? { subject_id: subjectFilter } : {}),
-    ...(groupFilter ? { info_type: groupFilter } : {}),
+    ...parseSubjectNavFilter(subjectFilter),
+    ...(groupFilter ? { domain_group_nm: groupFilter } : {}),
     ...(search.trim() ? { search: search.trim() } : {}),
   }), [page, subjectFilter, groupFilter, search])
 
@@ -104,11 +99,12 @@ export default function DomainsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const openCreate = () => {
+    const nav = parseSubjectNavFilter(subjectFilter)
     setSelectedRow(null)
     setFormValue({
       ...DomainForm.EMPTY,
-      ...(groupFilter ? { info_type: groupFilter } : {}),
-      ...(subjectFilter ? { subject_id: subjectFilter } : {}),
+      ...(groupFilter ? { domain_group_nm: groupFilter } : {}),
+      ...(nav.subject_area_id ? { subject_area_id: nav.subject_area_id } : {}),
     })
     setFormError(null)
     setPanelMode('create')
@@ -116,7 +112,7 @@ export default function DomainsPage() {
 
   const openEdit = (row) => {
     setSelectedRow(row)
-    setFormValue({ ...row, data_length: toFormDataLength(row) })
+    setFormValue({ ...row, data_len: toFormDataLength(row) })
     setFormError(null)
     setPanelMode('edit')
   }
@@ -128,29 +124,21 @@ export default function DomainsPage() {
   }
 
   const validate = (v) => {
-    if (!v.info_type?.trim()) return '도메인 그룹명을 선택하세요.'
-    if (!v.domain_nm?.trim()) return '도메인명을 입력하세요.'
-    if (!v.data_type) return '데이터 타입을 선택하세요.'
-    if (!v.subject_id) return '주제영역을 선택하세요.'
+    if (!v.domain_group_nm?.trim()) return '도메인 그룹명을 선택하세요.'
+    if (!v.std_domain_nm?.trim()) return '도메인명을 입력하세요.'
+    if (!v.data_type_nm) return '데이터 타입을 선택하세요.'
+    if (!v.subject_area_id) return '주제영역을 선택하세요.'
 
-    const lenErr = validateDataLength(v.data_length, v.data_type, v.data_scale)
+    const lenErr = validateDataLength(v.data_len, v.data_type_nm, v.data_scale)
     if (lenErr) return lenErr
 
-    if (words.length > 0) {
-      const exists = words.some(
-        (w) => w.abb_word_nm?.toUpperCase() === v.domain_div_cd?.trim().toUpperCase(),
-      )
-      if (!exists) {
-        return `도메인 영문명 "${v.domain_div_cd.trim().toUpperCase()}"은 표준단어에 등록되지 않은 약어입니다. 표준단어를 먼저 등록하세요.`
-      }
-    }
     return null
   }
 
   const sanitizePayload = (v) => {
     const { data_scale, ...rest } = v
-    const data_length = normalizeDataLengthInput(v.data_length, v.data_type, data_scale) || null
-    return { ...rest, data_length }
+    const data_len = normalizeDataLengthInput(v.data_len, v.data_type_nm, data_scale) || null
+    return { ...rest, data_len }
   }
 
   const handleSave = async () => {
@@ -164,7 +152,7 @@ export default function DomainsPage() {
         await create(payload)
         closePanel()
       } else {
-        await update(selectedRow.domain_id, payload)
+        await update(selectedRow.std_domain_id, payload)
         setSelectedRow({ ...selectedRow, ...payload })
       }
       reloadAllDomains()
@@ -182,7 +170,7 @@ export default function DomainsPage() {
     try {
       await Promise.all([...selected].map((id) => domainsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.domain_id)) closePanel()
+      if (selectedRow && selected.has(selectedRow.std_domain_id)) closePanel()
       await refetch()
       reloadAllDomains()
     } catch (e) {
@@ -197,7 +185,7 @@ export default function DomainsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.domain_id)
+      await remove(deleteTarget.std_domain_id)
       setDeleteTarget(null)
       closePanel()
       reloadAllDomains()
@@ -227,24 +215,24 @@ export default function DomainsPage() {
 
   const openGroupCreate = () => {
     setEditingGroup(null)
-    setGroupForm({ group_nm: '', group_desc: '', use_yn: 'Y' })
+    setGroupForm({ domain_group_nm: '', domain_group_desc: '', use_yn: 'Y' })
     setGroupError(null)
     setShowGroupModal(true)
   }
   const openGroupEdit = (g) => {
     setEditingGroup(g)
-    setGroupForm({ group_nm: g.group_nm, group_desc: g.group_desc ?? '', use_yn: g.use_yn })
+    setGroupForm({ domain_group_nm: g.domain_group_nm, domain_group_desc: g.domain_group_desc ?? '', use_yn: g.use_yn })
     setGroupError(null)
     setShowGroupModal(true)
   }
   const closeGroupModal = () => { setShowGroupModal(false); setEditingGroup(null) }
 
   const handleGroupSave = async () => {
-    if (!groupForm.group_nm?.trim()) { setGroupError('그룹명을 입력하세요.'); return }
+    if (!groupForm.domain_group_nm?.trim()) { setGroupError('그룹명을 입력하세요.'); return }
     setGroupSaving(true); setGroupError(null)
     try {
       if (editingGroup) {
-        await domainGroupsApi.update(editingGroup.group_id, groupForm)
+        await domainGroupsApi.update(editingGroup.domain_group_id, groupForm)
       } else {
         await domainGroupsApi.create(groupForm)
       }
@@ -260,7 +248,7 @@ export default function DomainsPage() {
   const handleGroupDelete = async () => {
     setGroupSaving(true)
     try {
-      await domainGroupsApi.delete(deleteGroup.group_id)
+      await domainGroupsApi.delete(deleteGroup.domain_group_id)
       loadGroups()
       setDeleteGroup(null)
     } catch (e) {
@@ -271,18 +259,18 @@ export default function DomainsPage() {
   }
 
   const groupNavItems = useMemo(
-    () => groups.map((g) => ({ id: g.group_nm, label: g.group_nm, icon: '▣' })),
+    () => groups.map((g) => ({ id: g.domain_group_nm, label: g.domain_group_nm, icon: '▣' })),
     [groups],
   )
 
   const getRow = (row) => {
-    const typeLen = [row.data_type, formatDataLength(row.data_length, row.data_type)]
+    const typeLen = [row.data_type_nm, formatDataLength(row.data_len, row.data_type_nm)]
       .filter(Boolean).join(' ')
     return {
-      id: row.domain_id,
-      primary: row.domain_nm,
-      secondary: row.infotype || typeLen,
-      meta: [row.info_type, typeLen, row.subject_name].filter(Boolean).join(' · '),
+      id: row.std_domain_id,
+      primary: row.std_domain_nm,
+      secondary: row.info_type_nm || typeLen,
+      meta: [row.domain_group_nm, typeLen, row.subject_area_nm].filter(Boolean).join(' · '),
       status: row.use_yn === 'Y' ? '사용' : '미사용',
       statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
     }
@@ -329,7 +317,7 @@ export default function DomainsPage() {
             sections={[
               {
                 key: 'subjects',
-                title: '주제영역',
+                title: '시스템 · 주제영역',
                 items: navItems,
                 selectedId: subjectFilter,
                 onSelect: (id) => { setSubjectFilter(id); setPage(1) },
@@ -366,7 +354,7 @@ export default function DomainsPage() {
               <MetaList
                 rows={data}
                 getRow={getRow}
-                selectedId={selectedRow?.domain_id}
+                selectedId={selectedRow?.std_domain_id}
                 onSelect={openEdit}
                 selectable
                 selectedIds={selected}
@@ -385,8 +373,8 @@ export default function DomainsPage() {
             empty={!detailOpen}
             emptyTitle="도메인을 선택하세요"
             emptyHint="목록에서 도메인을 클릭하면 타입·길이·인포타입 상세가 여기에 표시됩니다."
-            title={panelMode === 'create' ? '표준 도메인 등록' : (formValue.domain_nm || '표준 도메인 수정')}
-            subtitle={panelMode === 'edit' ? (formValue.infotype || selectedRow?.infotype) : '새 도메인 입력'}
+            title={panelMode === 'create' ? '표준 도메인 등록' : (formValue.std_domain_nm || '표준 도메인 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.info_type_nm || selectedRow?.info_type_nm) : '새 도메인 입력'}
             onClose={closePanel}
             footer={(
               <>
@@ -445,9 +433,9 @@ export default function DomainsPage() {
                   </thead>
                   <tbody>
                     {groups.map((g) => (
-                      <tr key={g.group_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '7px 12px', fontWeight: 600 }}>{g.group_nm}</td>
-                        <td style={{ padding: '7px 12px', color: '#6b7280' }}>{g.group_desc || '-'}</td>
+                      <tr key={g.domain_group_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '7px 12px', fontWeight: 600 }}>{g.domain_group_nm}</td>
+                        <td style={{ padding: '7px 12px', color: '#6b7280' }}>{g.domain_group_desc || '-'}</td>
                         <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                           <span className={`badge ${g.use_yn === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{g.use_yn}</span>
                         </td>
@@ -466,8 +454,8 @@ export default function DomainsPage() {
             <label className="form-label required">그룹명</label>
             <input
               className="form-control"
-              value={groupForm.group_nm}
-              onChange={(e) => setGroupForm((f) => ({ ...f, group_nm: e.target.value }))}
+              value={groupForm.domain_group_nm}
+              onChange={(e) => setGroupForm((f) => ({ ...f, domain_group_nm: e.target.value }))}
               placeholder="예: 명칭, 코드, 금액"
               maxLength={100}
             />
@@ -476,8 +464,8 @@ export default function DomainsPage() {
             <label className="form-label">설명</label>
             <input
               className="form-control"
-              value={groupForm.group_desc}
-              onChange={(e) => setGroupForm((f) => ({ ...f, group_desc: e.target.value }))}
+              value={groupForm.domain_group_desc}
+              onChange={(e) => setGroupForm((f) => ({ ...f, domain_group_desc: e.target.value }))}
               placeholder="그룹에 대한 설명"
               maxLength={200}
             />
@@ -498,7 +486,7 @@ export default function DomainsPage() {
 
       {deleteGroup && (
         <ConfirmDialog
-          message={`"${deleteGroup.group_nm}" 그룹을 삭제하시겠습니까?`}
+          message={`"${deleteGroup.domain_group_nm}" 그룹을 삭제하시겠습니까?`}
           onConfirm={handleGroupDelete}
           onCancel={() => setDeleteGroup(null)}
           loading={groupSaving}
@@ -507,7 +495,7 @@ export default function DomainsPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.domain_nm}" 도메인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.std_domain_nm}" 도메인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
@@ -527,15 +515,15 @@ export default function DomainsPage() {
         <ExcelUploadModal
           title="표준도메인"
           columns={EXCEL_COLUMNS}
-          rowDefaults={{ subject_id: 'STD01' }}
+          rowDefaults={{ subject_area_id: 'STD01' }}
           validateRow={(r) => {
             const validTypes = ['VARCHAR', 'CHAR', 'NUMBER', 'INTEGER', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'CLOB']
-            const dt = r.data_type?.trim().toUpperCase()
+            const dt = r.data_type_nm?.trim().toUpperCase()
             if (dt && !validTypes.includes(dt)) {
-              return `데이터타입 "${r.data_type}"은 허용되지 않습니다. (${validTypes.join(', ')})`
+              return `데이터타입 "${r.data_type_nm}"은 허용되지 않습니다. (${validTypes.join(', ')})`
             }
             const normalized = normalizeDataLengthInput(
-              mergeLegacyLengthScale(r.data_length, r.data_scale, dt) ?? r.data_length,
+              mergeLegacyLengthScale(r.data_len, r.data_scale, dt) ?? r.data_len,
               dt,
             )
             const lenErr = validateDataLength(normalized, dt)

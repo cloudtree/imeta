@@ -29,15 +29,15 @@ export default function TableDefinitionReviewPage() {
   const [reviewGroups, setReviewGroups] = useState(null)
 
   const schemaOptions = useMemo(
-    () => [...new Set(rows.map((row) => row.schema_name))].sort(),
+    () => [...new Set(rows.map((row) => row.schema_nm))].sort(),
     [rows],
   )
 
   const dbTypeOptions = useMemo(() => {
     const source = schemaName
-      ? rows.filter((row) => row.schema_name === schemaName)
+      ? rows.filter((row) => row.schema_nm === schemaName)
       : rows
-    return [...new Set(source.map((row) => row.db_type))].sort()
+    return [...new Set(source.map((row) => row.db_type_nm))].sort()
   }, [rows, schemaName])
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function TableDefinitionReviewPage() {
   )
 
   useEffect(() => {
-    const visibleIds = new Set(filteredRows.map((row) => row.def_id))
+    const visibleIds = new Set(filteredRows.map((row) => row.table_def_id))
     setSelected((prev) => {
       const next = new Set([...prev].filter((id) => visibleIds.has(id)))
       return next.size === prev.size ? prev : next
@@ -75,7 +75,7 @@ export default function TableDefinitionReviewPage() {
   }, [filteredRows])
 
   const handleStandardReview = useCallback(async () => {
-    const selectedRows = filteredRows.filter((row) => selected.has(row.def_id))
+    const selectedRows = filteredRows.filter((row) => selected.has(row.table_def_id))
     if (!selectedRows.length) {
       alert('표준검토할 항목을 선택하세요.')
       return
@@ -117,15 +117,15 @@ export default function TableDefinitionReviewPage() {
   }
 
   const validateExcelRow = (row) => {
-    if (!row.schema_name?.trim()) return '스키마명은 필수입니다.'
-    if (!row.db_type?.trim()) return 'DB종류는 필수입니다.'
-    if (!row.entity_name?.trim()) return '엔티티명은 필수입니다.'
-    if (!row.table_name?.trim()) return '테이블명은 필수입니다.'
-    if (!row.attribute_name?.trim()) return '속성명은 필수입니다.'
-    if (!row.column_name?.trim()) return '컬럼명은 필수입니다.'
-    const order = Number(row.column_order)
+    if (!row.schema_nm?.trim()) return '스키마명은 필수입니다.'
+    if (!row.db_type_nm?.trim()) return 'DB종류는 필수입니다.'
+    if (!row.entity_nm?.trim()) return '엔티티명은 필수입니다.'
+    if (!row.table_nm?.trim()) return '테이블명은 필수입니다.'
+    if (!row.attribute_nm?.trim()) return '속성명은 필수입니다.'
+    if (!row.column_nm?.trim()) return '컬럼명은 필수입니다.'
+    const order = Number(row.column_ord)
     if (!Number.isInteger(order) || order < 1) return '컬럼명순서는 1 이상의 정수여야 합니다.'
-    if (!row.data_type?.trim()) return '데이터타입은 필수입니다.'
+    if (!row.data_type_nm?.trim()) return '데이터타입은 필수입니다.'
     const pk = row.pk_yn?.trim().toUpperCase()
     if (pk && pk !== 'Y' && pk !== 'N') return 'PK여부는 Y 또는 N만 입력 가능합니다.'
     return null

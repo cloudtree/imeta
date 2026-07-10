@@ -13,14 +13,14 @@ import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import WordForm from './WordForm'
 
 const EXCEL_COLUMNS = [
-  { key: 'subject_id',     label: '주제영역ID',    required: false, example: 'STD01'    },
-  { key: 'word_nm',        label: '단어명',        required: true,  example: '고객'      },
-  { key: 'all_word_nm',    label: '영문명(전체)',   required: true,  example: 'Customer' },
+  { key: 'subject_area_id',     label: '주제영역ID',    required: false, example: 'STD01'    },
+  { key: 'std_word_nm',        label: '단어명',        required: true,  example: '고객'      },
+  { key: 'full_eng_nm',    label: '영문명(전체)',   required: true,  example: 'Customer' },
   { key: 'abb_word_nm',    label: '영문약어',       required: true,  example: 'CUST'     },
   { key: 'kor_synonym_nm', label: '한글동의어',     required: false, example: '거래처'    },
   { key: 'taxon_yn',       label: '분류어여부',     required: false, example: 'N'           },
   { key: 'use_yn',         label: '사용여부',       required: false, example: 'Y'           },
-  { key: 'word_desc',      label: '설명',           required: false, example: '(비우면 네이버 국어사전 자동 입력)' },
+  { key: 'std_word_desc',      label: '설명',           required: false, example: '(비우면 네이버 국어사전 자동 입력)' },
 ]
 
 const PAGE_SIZE = 50
@@ -53,7 +53,7 @@ export default function WordsPage() {
   const listParams = useMemo(() => ({
     page,
     limit: PAGE_SIZE,
-    ...(subjectFilter ? { subject_id: subjectFilter } : {}),
+    ...(subjectFilter ? { subject_area_id: subjectFilter } : {}),
     ...(search.trim() ? { search: search.trim() } : {}),
   }), [page, subjectFilter, search])
 
@@ -92,12 +92,12 @@ export default function WordsPage() {
   }
 
   const validate = (v) => {
-    if (!v.word_nm?.trim()) return '단어명을 입력하세요.'
+    if (!v.std_word_nm?.trim()) return '단어명을 입력하세요.'
     if (!v.abb_word_nm?.trim()) return '영문약어를 입력하세요.'
-    if (!v.all_word_nm?.trim()) return '영문명을 입력하세요.'
-    if (!v.subject_id) return '주제영역을 선택하세요.'
+    if (!v.full_eng_nm?.trim()) return '영문명을 입력하세요.'
+    if (!v.subject_area_id) return '주제영역을 선택하세요.'
 
-    const wordNm = v.word_nm.trim()
+    const wordNm = v.std_word_nm.trim()
     if (wordNm.length > 15) return '단어명은 최대 15자까지 입력 가능합니다.'
     if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(wordNm)) {
       return '단어명에는 공백 및 특수문자를 사용할 수 없습니다. (/, -, & 만 허용)'
@@ -122,7 +122,7 @@ export default function WordsPage() {
         await create(formValue)
         closePanel()
       } else {
-        await update(selectedRow.word_id, formValue)
+        await update(selectedRow.std_word_id, formValue)
         setSelectedRow({ ...selectedRow, ...formValue })
       }
       reloadAllWords()
@@ -136,7 +136,7 @@ export default function WordsPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.word_id)
+      await remove(deleteTarget.std_word_id)
       setDeleteTarget(null)
       closePanel()
       reloadAllWords()
@@ -154,7 +154,7 @@ export default function WordsPage() {
     try {
       await Promise.all([...selected].map((id) => wordsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.word_id)) closePanel()
+      if (selectedRow && selected.has(selectedRow.std_word_id)) closePanel()
       await refetch()
       reloadAllWords()
     } catch (e) {
@@ -184,10 +184,10 @@ export default function WordsPage() {
   }
 
   const getRow = (row) => ({
-    id: row.word_id,
-    primary: row.word_nm,
-    secondary: [row.abb_word_nm, row.all_word_nm].filter(Boolean).join(' · '),
-    meta: [row.subject_name, row.kor_synonym_nm, row.taxon_yn === 'Y' ? '분류어' : null]
+    id: row.std_word_id,
+    primary: row.std_word_nm,
+    secondary: [row.abb_word_nm, row.full_eng_nm].filter(Boolean).join(' · '),
+    meta: [row.subject_area_nm, row.kor_synonym_nm, row.taxon_yn === 'Y' ? '분류어' : null]
       .filter(Boolean).join(' · '),
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
@@ -256,7 +256,7 @@ export default function WordsPage() {
               <MetaList
                 rows={data}
                 getRow={getRow}
-                selectedId={selectedRow?.word_id}
+                selectedId={selectedRow?.std_word_id}
                 onSelect={openEdit}
                 selectable
                 selectedIds={selected}
@@ -275,7 +275,7 @@ export default function WordsPage() {
             empty={!detailOpen}
             emptyTitle="단어를 선택하세요"
             emptyHint="목록에서 단어를 클릭하면 상세 정보가 여기에 표시됩니다. 새 단어는 우측 상단에서 등록할 수 있습니다."
-            title={panelMode === 'create' ? '표준 단어 등록' : (formValue.word_nm || '표준 단어 수정')}
+            title={panelMode === 'create' ? '표준 단어 등록' : (formValue.std_word_nm || '표준 단어 수정')}
             subtitle={panelMode === 'edit' ? (formValue.abb_word_nm || selectedRow?.abb_word_nm) : '새 단어 입력'}
             onClose={closePanel}
             footer={(
@@ -305,7 +305,7 @@ export default function WordsPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.word_nm}" 단어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.std_word_nm}" 단어를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
@@ -325,9 +325,9 @@ export default function WordsPage() {
         <ExcelUploadModal
           title="표준단어"
           columns={EXCEL_COLUMNS}
-          rowDefaults={{ subject_id: 'STD01' }}
+          rowDefaults={{ subject_area_id: 'STD01' }}
           validateRow={(r) => {
-            const nm = r.word_nm?.trim() ?? ''
+            const nm = r.std_word_nm?.trim() ?? ''
             const abbr = r.abb_word_nm?.trim() ?? ''
             if (nm.length > 15) return '단어명은 최대 15자까지 가능합니다.'
             if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(nm)) {

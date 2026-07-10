@@ -5,9 +5,9 @@ import { getAuthToken } from '../api/client'
 const AuthContext = createContext(null)
 
 function normalizeUser(data) {
-  if (!data?.username) return null
+  if (!data?.login_id) return null
   return {
-    username: data.username,
+    login_id: data.login_id,
     role_cd: data.role_cd === 'ADMIN' ? 'ADMIN' : 'USER',
   }
 }
@@ -39,8 +39,8 @@ export function AuthProvider({ children }) {
     refresh()
   }, [refresh])
 
-  const login = useCallback(async (username, password) => {
-    const data = await apiLogin(username, password)
+  const login = useCallback(async (login_id, password) => {
+    const data = await apiLogin(login_id, password)
     setUser(normalizeUser(data))
     return data
   }, [])

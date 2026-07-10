@@ -122,6 +122,8 @@ domain_groups      ──> domains.info_type (그룹명 참조)
 |------|------|------|
 | `subject_id` | VARCHAR(20) PK | 주제영역 ID |
 | `subject_name` | VARCHAR(100) | 주제영역명 |
+| `system_id` | INTEGER FK | 시스템 (`meta_systems`) |
+| `system_nm` | VARCHAR(200) | 시스템명 |
 | `description` | VARCHAR(1000) | 설명 |
 | `use_yn` | CHAR(1) | 사용 여부 (`Y`/`N`) |
 

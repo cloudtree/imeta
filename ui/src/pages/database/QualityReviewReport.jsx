@@ -92,9 +92,9 @@ export default function QualityReviewReport({
             group.entityReview?.status === 'error' || group.entityReview?.status === 'warning'
           return {
             tableKey: group.tableKey,
-            table: group.table_name,
-            entity: group.entity_name,
-            schema: group.rows[0]?.schema_name,
+            table: group.table_nm,
+            entity: group.entity_nm,
+            schema: group.rows[0]?.schema_nm,
             errorRows,
             warnRows,
             entityBad,
@@ -115,7 +115,7 @@ export default function QualityReviewReport({
           level: item.level,
           category: item.category,
           message: item.message,
-          where: `${group.table_name || group.entity_name || '—'}`,
+          where: `${group.table_nm || group.entity_nm || '—'}`,
         })
       }
       for (const row of group.rows) {
@@ -125,7 +125,7 @@ export default function QualityReviewReport({
             level: item.level,
             category: item.category,
             message: item.message,
-            where: `${group.table_name}.${row.column_name || row.attribute_name || '—'}`,
+            where: `${group.table_nm}.${row.column_nm || row.attribute_nm || '—'}`,
           })
         }
       }
@@ -245,7 +245,7 @@ export default function QualityReviewReport({
           <p className="qr-dash__eyebrow">Meta Portal · MDMS</p>
           <h1 className="qr-dash__title">데이터 품질 검토</h1>
           <p className="qr-dash__lead">
-            {server?.server_name || '서버'} 스키마의 표준 준수 상태를 한눈에 확인하세요.
+            {server?.db_server_nm || '서버'} 스키마의 표준 준수 상태를 한눈에 확인하세요.
           </p>
 
           <form
@@ -269,17 +269,17 @@ export default function QualityReviewReport({
           <dl className="qr-dash__meta">
             <div>
               <dt>서버</dt>
-              <dd>{server?.server_name || '—'}</dd>
+              <dd>{server?.db_server_nm || '—'}</dd>
             </div>
             <div>
               <dt>데이터베이스</dt>
-              <dd>{server?.database_name || '—'}</dd>
+              <dd>{server?.database_nm || '—'}</dd>
             </div>
             <div>
               <dt>호스트</dt>
               <dd>
-                {server?.host || '—'}
-                {server?.port ? `:${server.port}` : ''}
+                {server?.host_nm || '—'}
+                {server?.port_no ? `:${server.port_no}` : ''}
               </dd>
             </div>
             <div>

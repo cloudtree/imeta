@@ -11,53 +11,53 @@ router.get('/recent', async (req, res) => {
     const { rows } = await pool.query(
       `(
          SELECT 'word'::text AS type,
-                w.word_id::text AS id,
-                w.word_nm AS label,
+                w.std_word_id::text AS id,
+                w.std_word_nm AS label,
                 COALESCE(w.abb_word_nm, '') AS detail,
-                w.updated_at AS occurred_at,
+                w.upd_dtm AS occurred_at,
                 '표준 단어'::text AS category
-         FROM words w
+         FROM meta_std_word_m w
        )
        UNION ALL
        (
          SELECT 'term',
-                t.term_id::text,
-                t.logical_term,
-                COALESCE(t.physical_term, ''),
-                t.updated_at,
+                t.std_term_id::text,
+                t.logical_term_nm,
+                COALESCE(t.physical_term_nm, ''),
+                t.upd_dtm,
                 '표준 용어'
-         FROM terms t
+         FROM meta_std_term_m t
        )
        UNION ALL
        (
          SELECT 'domain',
-                d.domain_id::text,
-                d.domain_nm,
-                COALESCE(d.infotype, d.data_type, ''),
-                d.updated_at,
+                d.std_domain_id::text,
+                d.std_domain_nm,
+                COALESCE(d.info_type_nm, d.data_type_nm, ''),
+                d.upd_dtm,
                 '표준 도메인'
-         FROM domains d
+         FROM meta_std_domain_m d
        )
        UNION ALL
        (
          SELECT 'table',
-                td.def_id::text,
-                td.table_name,
-                COALESCE(td.entity_name, td.column_name, ''),
-                td.updated_at,
+                td.table_def_id::text,
+                td.table_nm,
+                COALESCE(td.entity_nm, td.column_nm, ''),
+                td.upd_dtm,
                 '테이블 정의서'
-         FROM table_definitions td
+         FROM meta_table_def_m td
          WHERE td.use_yn = 'Y'
        )
        UNION ALL
        (
          SELECT 'subject',
-                s.subject_id,
-                s.subject_name,
-                COALESCE(s.description, ''),
-                s.updated_at,
+                s.subject_area_id,
+                s.subject_area_nm,
+                COALESCE(s.subject_area_desc, ''),
+                s.upd_dtm,
                 '주제영역'
-         FROM subject_area s
+         FROM meta_subject_area_m s
        )
        ORDER BY occurred_at DESC NULLS LAST
        LIMIT $1`,

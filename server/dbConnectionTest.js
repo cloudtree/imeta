@@ -4,20 +4,20 @@ import { resolveSslForHost } from './dbConfig.js'
 const CONNECTION_TIMEOUT_MS = 10_000
 
 export async function testPgConnection({
-  host,
-  port = 5432,
-  database_name,
-  username,
-  password,
-  ssl_enabled = 'Y',
+  host_nm,
+  port_no = 5432,
+  database_nm,
+  user_nm,
+  password_val,
+  ssl_yn = 'Y',
 }) {
   const client = new pg.Client({
-    host: host?.trim(),
-    port: Number(port) || 5432,
-    database: database_name?.trim(),
-    user: username?.trim(),
-    password,
-    ssl: resolveSslForHost(host?.trim(), ssl_enabled),
+    host: host_nm?.trim(),
+    port: Number(port_no) || 5432,
+    database: database_nm?.trim(),
+    user: user_nm?.trim(),
+    password: password_val,
+    ssl: resolveSslForHost(host_nm?.trim(), ssl_yn),
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
   })
 

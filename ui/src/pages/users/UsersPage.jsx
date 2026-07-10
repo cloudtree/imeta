@@ -12,10 +12,10 @@ import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import UserForm from './UserForm'
 
 const EXCEL_COLUMNS = [
-  { key: 'username', label: '사용자ID', required: true, example: 'hong.gildong' },
+  { key: 'login_id', label: '사용자ID', required: true, example: 'hong.gildong' },
   { key: 'password', label: '비밀번호', required: true, example: 'pass1234' },
   { key: 'user_nm', label: '사용자명', required: true, example: '홍길동' },
-  { key: 'email', label: '이메일', required: false, example: 'hong@company.com' },
+  { key: 'email_nm', label: '이메일', required: false, example: 'hong@company.com' },
   { key: 'dept_nm', label: '부서', required: false, example: '데이터관리팀' },
   { key: 'role_cd', label: '권한', required: false, example: 'USER' },
   { key: 'use_yn', label: '사용여부', required: false, example: 'Y' },
@@ -67,7 +67,7 @@ export default function UsersPage() {
       ...row,
       password: '',
       password_confirm: '',
-      email: row.email ?? '',
+      email_nm: row.email_nm ?? '',
       dept_nm: row.dept_nm ?? '',
     })
     setFormError(null)
@@ -81,8 +81,8 @@ export default function UsersPage() {
   }
 
   const validate = (v, isEdit) => {
-    if (!v.username?.trim()) return '사용자 ID를 입력하세요.'
-    if (!/^[A-Za-z0-9._@-]+$/.test(v.username.trim())) {
+    if (!v.login_id?.trim()) return '사용자 ID를 입력하세요.'
+    if (!/^[A-Za-z0-9._@-]+$/.test(v.login_id.trim())) {
       return '사용자 ID는 영문, 숫자, . _ @ - 만 사용할 수 있습니다.'
     }
     if (!v.user_nm?.trim()) return '사용자명을 입력하세요.'
@@ -100,9 +100,9 @@ export default function UsersPage() {
   const toPayload = (v) => {
     const { password_confirm, ...rest } = v
     const payload = {
-      username: rest.username?.trim(),
+      login_id: rest.login_id?.trim(),
       user_nm: rest.user_nm?.trim(),
-      email: rest.email?.trim() || null,
+      email_nm: rest.email_nm?.trim() || null,
       dept_nm: rest.dept_nm?.trim() || null,
       role_cd: rest.role_cd || 'USER',
       use_yn: rest.use_yn || 'Y',
@@ -130,7 +130,7 @@ export default function UsersPage() {
           ...updated,
           password: '',
           password_confirm: '',
-          email: updated.email ?? '',
+          email_nm: updated.email_nm ?? '',
           dept_nm: updated.dept_nm ?? '',
         })
       }
@@ -189,9 +189,9 @@ export default function UsersPage() {
 
   const getRow = (row) => ({
     id: row.user_id,
-    primary: row.user_nm || row.username,
-    secondary: row.username,
-    meta: [ROLE_LABEL[row.role_cd] || row.role_cd, row.dept_nm, row.email]
+    primary: row.user_nm || row.login_id,
+    secondary: row.login_id,
+    meta: [ROLE_LABEL[row.role_cd] || row.role_cd, row.dept_nm, row.email_nm]
       .filter(Boolean).join(' · '),
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
@@ -300,7 +300,7 @@ export default function UsersPage() {
             emptyTitle="사용자를 선택하세요"
             emptyHint="목록에서 사용자를 클릭하면 상세 정보가 여기에 표시됩니다. 새 사용자는 우측 상단에서 등록할 수 있습니다."
             title={panelMode === 'create' ? '사용자 등록' : (formValue.user_nm || '사용자 수정')}
-            subtitle={panelMode === 'edit' ? formValue.username : '새 계정 입력'}
+            subtitle={panelMode === 'edit' ? formValue.login_id : '새 계정 입력'}
             onClose={closePanel}
             footer={(
               <>
@@ -329,7 +329,7 @@ export default function UsersPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`"${deleteTarget.user_nm || deleteTarget.username}" 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+          message={`"${deleteTarget.user_nm || deleteTarget.login_id}" 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
@@ -351,11 +351,11 @@ export default function UsersPage() {
           columns={EXCEL_COLUMNS}
           rowDefaults={{ role_cd: 'USER', use_yn: 'Y' }}
           validateRow={(r) => {
-            const username = r.username?.trim() ?? ''
+            const login_id = r.login_id?.trim() ?? ''
             const password = r.password ?? ''
             const user_nm = r.user_nm?.trim() ?? ''
-            if (!username) return '사용자ID는 필수입니다.'
-            if (!/^[A-Za-z0-9._@-]+$/.test(username)) {
+            if (!login_id) return '사용자ID는 필수입니다.'
+            if (!/^[A-Za-z0-9._@-]+$/.test(login_id)) {
               return '사용자ID는 영문, 숫자, . _ @ - 만 사용할 수 있습니다.'
             }
             if (!user_nm) return '사용자명은 필수입니다.'

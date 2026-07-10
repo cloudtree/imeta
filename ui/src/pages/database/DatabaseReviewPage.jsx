@@ -8,6 +8,7 @@ import TableDefinitionSheet from './TableDefinitionSheet'
 import StandardReviewPanel from './StandardReviewPanel'
 import { filterDefinitionRowsByFilters } from './tableDefinitionConstants'
 import { reviewSelectedDefinitions } from './standardReviewUtils'
+import { mapIntrospectionDefinitionRows } from './mapIntrospectionRow'
 
 export default function DatabaseReviewPage() {
   const { data: servers, loading: serversLoading } = useDbServers({ use_yn: 'Y' })
@@ -27,7 +28,7 @@ export default function DatabaseReviewPage() {
 
   useEffect(() => {
     if (!selectedServerId && servers.length) {
-      setSelectedServerId(String(servers[0].server_id))
+      setSelectedServerId(String(servers[0].db_server_id))
     }
   }, [servers, selectedServerId])
 
@@ -42,7 +43,7 @@ export default function DatabaseReviewPage() {
     setTableSearch('')
     try {
       const res = await dbServersApi.getSchemaDefinitions(selectedServerId)
-      setRows(res.items ?? [])
+      setRows(mapIntrospectionDefinitionRows(res.items ?? []))
       setServerInfo(res.server ?? null)
     } catch (e) {
       setError(e.message)
@@ -56,15 +57,15 @@ export default function DatabaseReviewPage() {
   }, [selectedServerId, loadDefinitions])
 
   const schemaOptions = useMemo(
-    () => [...new Set(rows.map((row) => row.schema_name))].sort(),
+    () => [...new Set(rows.map((row) => row.schema_nm))].sort(),
     [rows],
   )
 
   const dbTypeOptions = useMemo(() => {
     const source = schemaName
-      ? rows.filter((row) => row.schema_name === schemaName)
+      ? rows.filter((row) => row.schema_nm === schemaName)
       : rows
-    return [...new Set(source.map((row) => row.db_type))].sort()
+    return [...new Set(source.map((row) => row.db_type_nm))].sort()
   }, [rows, schemaName])
 
   useEffect(() => {
@@ -94,7 +95,7 @@ export default function DatabaseReviewPage() {
   )
 
   useEffect(() => {
-    const visibleIds = new Set(filteredRows.map((row) => row.def_id))
+    const visibleIds = new Set(filteredRows.map((row) => row.table_def_id))
     setSelected((prev) => {
       const next = new Set([...prev].filter((id) => visibleIds.has(id)))
       return next.size === prev.size ? prev : next
@@ -102,7 +103,7 @@ export default function DatabaseReviewPage() {
   }, [filteredRows])
 
   const handleStandardReview = useCallback(async () => {
-    const selectedRows = filteredRows.filter((row) => selected.has(row.def_id))
+    const selectedRows = filteredRows.filter((row) => selected.has(row.table_def_id))
     if (!selectedRows.length) {
       alert('표준검토할 항목을 선택하세요.')
       return
@@ -135,7 +136,7 @@ export default function DatabaseReviewPage() {
           <h1 className="page-title">데이터베이스검토</h1>
           <p className="page-subtitle">
             등록된 DB 스키마를 테이블 정의서 형식으로 조회하고 표준을 검토합니다.
-            {serverInfo ? ` (${serverInfo.server_name} / ${serverInfo.database_name})` : ''}
+            {serverInfo ? ` (${serverInfo.db_server_nm} / ${serverInfo.database_nm})` : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -148,8 +149,8 @@ export default function DatabaseReviewPage() {
           >
             {!servers.length && <option value="">등록된 서버 없음</option>}
             {servers.map((server) => (
-              <option key={server.server_id} value={server.server_id}>
-                {server.server_name} ({server.database_name})
+              <option key={server.db_server_id} value={server.db_server_id}>
+                {server.db_server_nm} ({server.database_nm})
               </option>
             ))}
           </select>

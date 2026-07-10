@@ -44,14 +44,14 @@ function splitLogicalChunks(logical) {
 }
 
 function matchWords(text, wordList) {
-  const sorted = [...wordList].sort((a, b) => b.word_nm.length - a.word_nm.length)
+  const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = 0
   while (pos < text.length) {
-    const match = sorted.find((w) => text.startsWith(w.word_nm, pos))
+    const match = sorted.find((w) => text.startsWith(w.std_word_nm, pos))
     if (match) {
       result.push({ word: match, matched: true })
-      pos += match.word_nm.length
+      pos += match.std_word_nm.length
     } else {
       const last = result[result.length - 1]
       if (last && !last.matched) last.text += text[pos]
@@ -91,16 +91,16 @@ function resolveLogicalSegments(logical, wordList) {
 }
 
 function matchWordsReverse(text, wordList) {
-  const sorted = [...wordList].sort((a, b) => b.word_nm.length - a.word_nm.length)
+  const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = text.length
   while (pos > 0) {
     const match = sorted.find(
-      (w) => w.word_nm.length <= pos && text.slice(pos - w.word_nm.length, pos) === w.word_nm
+      (w) => w.std_word_nm.length <= pos && text.slice(pos - w.std_word_nm.length, pos) === w.std_word_nm
     )
     if (match) {
       result.unshift({ word: match, matched: true })
-      pos -= match.word_nm.length
+      pos -= match.std_word_nm.length
     } else {
       const first = result[0]
       if (first && !first.matched) first.text = text[pos - 1] + first.text
@@ -116,52 +116,52 @@ function toPhysical(segments) {
 }
 
 function findHomonyms(matchedWords, allWords) {
-  return matchedWords.filter((w) => allWords.filter((x) => x.word_nm === w.word_nm).length > 1)
+  return matchedWords.filter((w) => allWords.filter((x) => x.std_word_nm === w.std_word_nm).length > 1)
 }
 
 function getSortedWordKey(segments) {
-  return segments.filter((s) => s.matched).map((s) => s.word.word_nm).sort().join('')
+  return segments.filter((s) => s.matched).map((s) => s.word.std_word_nm).sort().join('')
 }
 
 function findSynonymTerm(normalizedLogical, segments, existingTerms, wordList, excludeTermId = null) {
   const key = getSortedWordKey(segments)
   if (!key) return null
   for (const term of existingTerms) {
-    if (excludeTermId != null && term.term_id === excludeTermId) continue
-    const termNorm = normalizeLogicalTerm(term.logical_term)
+    if (excludeTermId != null && term.std_term_id === excludeTermId) continue
+    const termNorm = normalizeLogicalTerm(term.logical_term_nm)
     if (termNorm === normalizedLogical) continue
-    if (getSortedWordKey(matchLogicalTerm(term.logical_term, wordList)) === key) return term
+    if (getSortedWordKey(matchLogicalTerm(term.logical_term_nm, wordList)) === key) return term
   }
   return null
 }
 
 function validateTermFields(input, ctx = {}) {
   const {
-    logical_term, physical_term, domain_div_cd, domain_id, infotype,
-    data_type, data_len, subject_id, term_id,
+    logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, info_type_nm,
+    data_type_nm, data_len, subject_area_id, std_term_id,
   } = input
   const { words = [], domains = [], existingTerms = [], requireDomainGroup = false } = ctx
   const errors = []
 
-  if (!subject_id?.trim()) errors.push('주제영역은 필수입니다.')
-  if (!logical_term?.trim()) errors.push('논리명은 필수입니다.')
-  if (!physical_term?.trim()) errors.push('물리명은 필수입니다.')
-  if (requireDomainGroup && !domain_div_cd?.trim()) errors.push('도메인 그룹명은 필수입니다.')
-  if (!data_type) errors.push('데이터타입은 필수입니다.')
+  if (!subject_area_id?.trim()) errors.push('주제영역은 필수입니다.')
+  if (!logical_term_nm?.trim()) errors.push('논리명은 필수입니다.')
+  if (!physical_term_nm?.trim()) errors.push('물리명은 필수입니다.')
+  if (requireDomainGroup && !domain_group_nm?.trim()) errors.push('도메인 그룹명은 필수입니다.')
+  if (!data_type_nm) errors.push('데이터타입은 필수입니다.')
   if (!data_len?.trim()) errors.push('데이터 길이를 입력하세요.')
   else {
-    const dataLenErr = validateDataLength(data_len, data_type)
+    const dataLenErr = validateDataLength(data_len, data_type_nm)
     if (dataLenErr) errors.push(dataLenErr)
   }
 
-  const normalized = normalizeLogicalTerm(logical_term)
+  const normalized = normalizeLogicalTerm(logical_term_nm)
   const {
     segments,
     isAmbiguous,
     physForward,
     physReverse,
-  } = resolveLogicalSegments(logical_term, words)
-  const phys        = (physical_term || '').trim().toUpperCase()
+  } = resolveLogicalSegments(logical_term_nm, words)
+  const phys        = (physical_term_nm || '').trim().toUpperCase()
 
   if (normalized && words.length) {
     const unmatched = segments.filter((s) => !s.matched)
@@ -187,30 +187,30 @@ function validateTermFields(input, ctx = {}) {
     const lastWord = words.find((w) => w.abb_word_nm?.toUpperCase() === lastAbbr)
     if (!lastWord) errors.push(`물리명의 마지막 단어 "${lastAbbr}"은 표준단어에 등록되지 않은 약어입니다.`)
     else if (lastWord.taxon_yn !== 'Y') {
-      errors.push(`물리명의 마지막 단어 "${lastAbbr}"(${lastWord.word_nm})은 분류어가 아닙니다.`)
+      errors.push(`물리명의 마지막 단어 "${lastAbbr}"(${lastWord.std_word_nm})은 분류어가 아닙니다.`)
     }
   }
 
   const homonyms = findHomonyms(segments.filter((s) => s.matched).map((s) => s.word), words)
   if (homonyms.length) {
-    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`)
+    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`)
   }
 
-  const synonym = findSynonymTerm(normalized, segments, existingTerms, words, term_id ?? null)
+  const synonym = findSynonymTerm(normalized, segments, existingTerms, words, std_term_id ?? null)
   if (synonym) {
-    errors.push(`동의 용어 검토 필요: 등록된 용어 "${synonym.logical_term}"과 단어 구성이 동일합니다.`)
+    errors.push(`동의 용어 검토 필요: 등록된 용어 "${synonym.logical_term_nm}"과 단어 구성이 동일합니다.`)
   }
 
-  if (domain_div_cd && domains.length && !domains.some((d) => d.info_type === domain_div_cd)) {
-    errors.push(`도메인 그룹명 "${domain_div_cd}"에 해당하는 표준 도메인 그룹이 없습니다.`)
+  if (domain_group_nm && domains.length && !domains.some((d) => d.domain_group_nm === domain_group_nm)) {
+    errors.push(`도메인 그룹명 "${domain_group_nm}"에 해당하는 표준 도메인 그룹이 없습니다.`)
   }
-  if (domain_div_cd && domain_div_cd !== '코드' && !domain_id && !infotype?.trim()) {
+  if (domain_group_nm && domain_group_nm !== '코드' && !std_domain_id && !info_type_nm?.trim()) {
     errors.push('코드 그룹이 아닌 경우 도메인 인포타입을 입력해야 합니다.')
   }
 
-  const dt = data_type?.trim().toUpperCase()
+  const dt = data_type_nm?.trim().toUpperCase()
   if (dt && !VALID_DATA_TYPES.includes(dt)) {
-    errors.push(`데이터타입 "${data_type}"은 허용되지 않습니다. (${VALID_DATA_TYPES.join(', ')})`)
+    errors.push(`데이터타입 "${data_type_nm}"은 허용되지 않습니다. (${VALID_DATA_TYPES.join(', ')})`)
   }
 
   return { firstError: errors[0] ?? null }
@@ -223,9 +223,9 @@ function assertTermValid(input, ctx) {
 
 async function loadTermValidationContext(client) {
   const [wordsRes, domainsRes, termsRes] = await Promise.all([
-    client.query(`SELECT word_nm, abb_word_nm, taxon_yn FROM words`),
-    client.query(`SELECT info_type FROM domains`),
-    client.query(`SELECT term_id, logical_term FROM terms`),
+    client.query(`SELECT std_word_nm, abb_word_nm, taxon_yn FROM meta_std_word_m`),
+    client.query(`SELECT domain_group_nm, info_type_nm FROM meta_std_domain_m`),
+    client.query(`SELECT std_term_id, logical_term_nm FROM meta_std_term_m`),
   ])
   return {
     words: wordsRes.rows,
@@ -237,31 +237,41 @@ async function loadTermValidationContext(client) {
 // GET /api/terms
 router.get('/', async (req, res) => {
   try {
-    const { search, use_yn, subject_id, page = 1, limit = 100 } = req.query
+    const { search, use_yn, subject_area_id, system_id, unassigned, page = 1, limit = 100 } = req.query
     const params = []
     const conditions = []
 
     if (search) {
       params.push(`%${search}%`)
-      conditions.push(`(t.logical_term ILIKE $${params.length} OR t.physical_term ILIKE $${params.length} OR t.domain_div_cd ILIKE $${params.length})`)
+      conditions.push(`(t.logical_term_nm ILIKE $${params.length} OR t.physical_term_nm ILIKE $${params.length} OR t.domain_group_nm ILIKE $${params.length})`)
     }
-    if (use_yn)     { params.push(use_yn);     conditions.push(`t.use_yn = $${params.length}`) }
-    if (subject_id) { params.push(subject_id); conditions.push(`t.subject_id = $${params.length}`) }
+    if (use_yn)            { params.push(use_yn);            conditions.push(`t.use_yn = $${params.length}`) }
+    if (subject_area_id)   { params.push(subject_area_id);   conditions.push(`t.subject_area_id = $${params.length}`) }
+    if (system_id) {
+      params.push(Number(system_id))
+      conditions.push(`s.system_id = $${params.length}`)
+    }
+    if (unassigned === 'Y') {
+      conditions.push(`t.subject_area_id IS NOT NULL AND s.system_id IS NULL`)
+    }
 
     const where  = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const offset = (Number(page) - 1) * Number(limit)
+    const fromJoin = `
+       FROM meta_std_term_m t
+       LEFT JOIN meta_std_domain_m d ON d.std_domain_id = t.std_domain_id
+       LEFT JOIN meta_subject_area_m s ON s.subject_area_id = t.subject_area_id
+    `
 
-    const countResult = await pool.query(`SELECT COUNT(*) FROM terms t ${where}`, params)
+    const countResult = await pool.query(`SELECT COUNT(*) ${fromJoin} ${where}`, params)
     const total = Number(countResult.rows[0].count)
 
     params.push(Number(limit), offset)
     const dataResult = await pool.query(
-      `SELECT t.*, d.domain_nm, s.subject_name
-       FROM terms t
-       LEFT JOIN domains d ON d.domain_id = t.domain_id
-       LEFT JOIN subject_area s ON s.subject_id = t.subject_id
+      `SELECT t.*, d.std_domain_nm, s.subject_area_nm, s.system_nm, s.system_id
+       ${fromJoin}
        ${where}
-       ORDER BY t.term_id DESC
+       ORDER BY t.std_term_id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     )
@@ -276,11 +286,11 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT t.*, d.domain_nm, s.subject_name
-       FROM terms t
-       LEFT JOIN domains d ON d.domain_id = t.domain_id
-       LEFT JOIN subject_area s ON s.subject_id = t.subject_id
-       WHERE t.term_id = $1`,
+      `SELECT t.*, d.std_domain_nm, s.subject_area_nm
+       FROM meta_std_term_m t
+       LEFT JOIN meta_std_domain_m d ON d.std_domain_id = t.std_domain_id
+       LEFT JOIN meta_subject_area_m s ON s.subject_area_id = t.subject_area_id
+       WHERE t.std_term_id = $1`,
       [req.params.id]
     )
     if (!rows.length) return res.status(404).json({ message: '용어를 찾을 수 없습니다.' })
@@ -291,32 +301,29 @@ router.get('/:id', async (req, res) => {
 })
 
 // '코드' 그룹 도메인 자동 생성 헬퍼
-async function ensureCodeDomain(client, { logical_term, data_type, data_len, subject_id }) {
+async function ensureCodeDomain(client, { logical_term_nm, data_type_nm, data_len, subject_area_id }) {
   const TYPE_ABBR = { VARCHAR:'VC', CHAR:'CH', NUMBER:'NM', INTEGER:'IN', DATE:'DT', TIMESTAMP:'TS', BOOLEAN:'BL', CLOB:'CL' }
-  const abbr     = TYPE_ABBR[data_type?.toUpperCase()] ?? (data_type ?? 'VC').slice(0, 2).toUpperCase()
+  const abbr     = TYPE_ABBR[data_type_nm?.toUpperCase()] ?? (data_type_nm ?? 'VC').slice(0, 2).toUpperCase()
   const lenPart = data_len != null ? String(data_len).trim() : ''
-  const infotype = `${logical_term}${abbr}${lenPart}`
+  const info_type_nm = `${logical_term_nm}${abbr}${lenPart}`
 
-  // 이미 존재하면 재사용
   const existing = await client.query(
-    `SELECT domain_id FROM domains WHERE infotype = $1 LIMIT 1`, [infotype]
+    `SELECT std_domain_id FROM meta_std_domain_m WHERE info_type_nm = $1 LIMIT 1`, [info_type_nm]
   )
-  if (existing.rows.length) return existing.rows[0].domain_id
+  if (existing.rows.length) return existing.rows[0].std_domain_id
 
-  // 도메인 그룹 '코드' 자동 생성
   await client.query(
-    `INSERT INTO domain_groups (group_nm, use_yn) VALUES ('코드', 'Y') ON CONFLICT (group_nm) DO NOTHING`
+    `INSERT INTO meta_domain_group_m (domain_group_nm, use_yn) VALUES ('코드', 'Y') ON CONFLICT (domain_group_nm) DO NOTHING`
   )
 
-  // 도메인 자동 생성
   const ins = await client.query(
-    `INSERT INTO domains (domain_nm, data_type, info_type, domain_div_cd, data_length, use_yn, subject_id, infotype)
-     VALUES ($1,$2,'코드','', $3,'Y',$4,$5) RETURNING domain_id`,
-    [logical_term, data_type?.toUpperCase() ?? 'VARCHAR',
+    `INSERT INTO meta_std_domain_m (std_domain_nm, data_type_nm, info_type_nm, domain_group_nm, data_len, use_yn, subject_area_id)
+     VALUES ($1,$2,$3,'코드',$4,'Y',$5) RETURNING std_domain_id`,
+    [logical_term_nm, data_type_nm?.toUpperCase() ?? 'VARCHAR', info_type_nm,
      lenPart || null,
-     subject_id ?? null, infotype]
+     subject_area_id ?? null]
   )
-  return ins.rows[0].domain_id
+  return ins.rows[0].std_domain_id
 }
 
 // POST /api/terms
@@ -324,26 +331,25 @@ router.post('/', async (req, res) => {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const { logical_term, physical_term, domain_div_cd, data_type, term_desc, use_yn = 'Y', subject_id } = req.body
-    const data_len = normalizeTermDataLen(req.body.data_len, data_type, req.body.data_scale) || null
-    let { domain_id } = req.body
+    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn = 'Y', subject_area_id } = req.body
+    const data_len = normalizeTermDataLen(req.body.data_len, data_type_nm, req.body.data_scale) || null
+    let { std_domain_id } = req.body
 
     const vctx = await loadTermValidationContext(client)
     assertTermValid(
-      { logical_term, physical_term, domain_div_cd, domain_id, data_type, data_len, subject_id },
+      { logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, subject_area_id },
       { ...vctx, requireDomainGroup: true }
     )
 
-    // '코드' 그룹이고 domain_id 없으면 자동 생성
-    if (domain_div_cd === '코드' && !domain_id) {
-      domain_id = await ensureCodeDomain(client, { logical_term, data_type, data_len, subject_id })
+    if (domain_group_nm === '코드' && !std_domain_id) {
+      std_domain_id = await ensureCodeDomain(client, { logical_term_nm, data_type_nm, data_len, subject_area_id })
     }
 
     const { rows } = await client.query(
-      `INSERT INTO terms (logical_term, physical_term, domain_div_cd, domain_id, data_type, data_len, term_desc, use_yn, subject_id)
+      `INSERT INTO meta_std_term_m (logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, std_term_desc, use_yn, subject_area_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [logical_term, physical_term, domain_div_cd ?? null, domain_id ?? null,
-       data_type, data_len, term_desc ?? null, use_yn, subject_id ?? null]
+      [logical_term_nm, physical_term_nm, domain_group_nm ?? null, std_domain_id ?? null,
+       data_type_nm, data_len, std_term_desc ?? null, use_yn, subject_area_id ?? null]
     )
     await client.query('COMMIT')
     res.status(201).json(rows[0])
@@ -360,31 +366,30 @@ router.put('/:id', async (req, res) => {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const { logical_term, physical_term, domain_div_cd, data_type, term_desc, use_yn, subject_id } = req.body
-    const data_len = normalizeTermDataLen(req.body.data_len, data_type, req.body.data_scale) || null
-    let { domain_id } = req.body
+    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn, subject_area_id } = req.body
+    const data_len = normalizeTermDataLen(req.body.data_len, data_type_nm, req.body.data_scale) || null
+    let { std_domain_id } = req.body
 
     const vctx = await loadTermValidationContext(client)
     assertTermValid(
       {
-        logical_term, physical_term, domain_div_cd, domain_id,
-        data_type, data_len, subject_id, term_id: Number(req.params.id),
+        logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id,
+        data_type_nm, data_len, subject_area_id, std_term_id: Number(req.params.id),
       },
       { ...vctx, requireDomainGroup: true }
     )
 
-    // '코드' 그룹이고 domain_id 없으면 자동 생성
-    if (domain_div_cd === '코드' && !domain_id) {
-      domain_id = await ensureCodeDomain(client, { logical_term, data_type, data_len, subject_id })
+    if (domain_group_nm === '코드' && !std_domain_id) {
+      std_domain_id = await ensureCodeDomain(client, { logical_term_nm, data_type_nm, data_len, subject_area_id })
     }
 
     const { rows } = await client.query(
-      `UPDATE terms
-       SET logical_term=$1, physical_term=$2, domain_div_cd=$3, domain_id=$4,
-           data_type=$5, data_len=$6, term_desc=$7, use_yn=$8, subject_id=$9
-       WHERE term_id=$10 RETURNING *`,
-      [logical_term, physical_term, domain_div_cd ?? null, domain_id ?? null,
-       data_type, data_len, term_desc ?? null, use_yn ?? 'Y', subject_id ?? null, req.params.id]
+      `UPDATE meta_std_term_m
+       SET logical_term_nm=$1, physical_term_nm=$2, domain_group_nm=$3, std_domain_id=$4,
+           data_type_nm=$5, data_len=$6, std_term_desc=$7, use_yn=$8, subject_area_id=$9
+       WHERE std_term_id=$10 RETURNING *`,
+      [logical_term_nm, physical_term_nm, domain_group_nm ?? null, std_domain_id ?? null,
+       data_type_nm, data_len, std_term_desc ?? null, use_yn ?? 'Y', subject_area_id ?? null, req.params.id]
     )
     if (!rows.length) {
       await client.query('ROLLBACK')
@@ -403,7 +408,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/terms/all — 전체 삭제 (/:id 보다 먼저 등록)
 router.delete('/all', async (_req, res) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM terms')
+    const { rowCount } = await pool.query('DELETE FROM meta_std_term_m')
     res.json({ deleted: rowCount })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -413,7 +418,7 @@ router.delete('/all', async (_req, res) => {
 // DELETE /api/terms/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM terms WHERE term_id = $1', [req.params.id])
+    const { rowCount } = await pool.query('DELETE FROM meta_std_term_m WHERE std_term_id = $1', [req.params.id])
     if (!rowCount) return res.status(404).json({ message: '용어를 찾을 수 없습니다.' })
     res.status(204).end()
   } catch (err) {
@@ -443,45 +448,43 @@ router.post('/bulk', async (req, res) => {
 
       await client.query(`SAVEPOINT ${savepoint}`)
       try {
-        const logical_term  = r.logical_term?.trim()
-        const physical_term = r.physical_term?.trim().toUpperCase()
-        const domain_div_cd = r.domain_div_cd?.trim() || null
-        const data_type     = r.data_type?.trim().toUpperCase() || 'VARCHAR'
-        const data_len      = normalizeTermDataLen(r.data_len ?? r.data_length, data_type, r.data_scale) || null
-        const use_yn        = r.use_yn?.trim().toUpperCase() || 'Y'
-        const term_desc     = r.term_desc?.trim() || null
-        const subject_id    = r.subject_id?.trim() || 'STD01'
-        const infotype      = r.infotype?.trim()
+        const logical_term_nm  = r.logical_term_nm?.trim()
+        const physical_term_nm = r.physical_term_nm?.trim().toUpperCase()
+        const domain_group_nm  = r.domain_group_nm?.trim() || null
+        const data_type_nm     = r.data_type_nm?.trim().toUpperCase() || 'VARCHAR'
+        const data_len         = normalizeTermDataLen(r.data_len, data_type_nm, r.data_scale) || null
+        const use_yn           = r.use_yn?.trim().toUpperCase() || 'Y'
+        const std_term_desc    = r.std_term_desc?.trim() || null
+        const subject_area_id  = r.subject_area_id?.trim() || 'STD01'
+        const info_type_nm     = r.info_type_nm?.trim()
 
         assertTermValid(
-          { logical_term, physical_term, domain_div_cd, infotype, data_type, data_len, subject_id },
+          { logical_term_nm, physical_term_nm, domain_group_nm, info_type_nm, data_type_nm, data_len, subject_area_id },
           vctx
         )
 
-        // 인포타입으로 domain_id 조회
-        let domain_id = r.domain_id || null
-        if (infotype) {
+        let std_domain_id = r.std_domain_id || null
+        if (info_type_nm) {
           const domRes = await client.query(
-            `SELECT domain_id FROM domains WHERE infotype = $1 LIMIT 1`,
-            [infotype]
+            `SELECT std_domain_id FROM meta_std_domain_m WHERE info_type_nm = $1 LIMIT 1`,
+            [info_type_nm]
           )
           if (domRes.rows.length === 0)
-            throw new Error(`도메인 인포타입 "${infotype}"을 찾을 수 없습니다.`)
-          domain_id = domRes.rows[0].domain_id
-        } else if (domain_div_cd === '코드' && !domain_id) {
-          // '코드' 그룹이고 인포타입 미지정 → 자동 생성
-          domain_id = await ensureCodeDomain(client, { logical_term, data_type, data_len, subject_id })
+            throw new Error(`도메인 인포타입 "${info_type_nm}"을 찾을 수 없습니다.`)
+          std_domain_id = domRes.rows[0].std_domain_id
+        } else if (domain_group_nm === '코드' && !std_domain_id) {
+          std_domain_id = await ensureCodeDomain(client, { logical_term_nm, data_type_nm, data_len, subject_area_id })
         }
 
         await client.query(
-          `INSERT INTO terms (logical_term, physical_term, domain_div_cd, domain_id, data_type, data_len, term_desc, use_yn, subject_id)
+          `INSERT INTO meta_std_term_m (logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, std_term_desc, use_yn, subject_area_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [logical_term, physical_term, domain_div_cd, domain_id, data_type, data_len, term_desc, use_yn, subject_id]
+          [logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, std_term_desc, use_yn, subject_area_id]
         )
 
         await client.query(`RELEASE SAVEPOINT ${savepoint}`)
-        success.push({ row: rowNum, logical_term })
-        vctx.existingTerms.push({ term_id: null, logical_term })
+        success.push({ row: rowNum, logical_term_nm })
+        vctx.existingTerms.push({ std_term_id: null, logical_term_nm })
       } catch (rowErr) {
         await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`)
         await client.query(`RELEASE SAVEPOINT ${savepoint}`)

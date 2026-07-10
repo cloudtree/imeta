@@ -32,8 +32,8 @@ export default function SubjectAreasPage() {
     const q = search.toLowerCase()
     return rows.filter(
       (r) =>
-        r.subject_id?.toLowerCase().includes(q)
-        || r.subject_name?.toLowerCase().includes(q),
+        r.subject_area_id?.toLowerCase().includes(q)
+        || r.subject_area_nm?.toLowerCase().includes(q),
     )
   }, [data, search, useFilter])
 
@@ -63,8 +63,9 @@ export default function SubjectAreasPage() {
   }
 
   const validate = (v) => {
-    if (!v.subject_id?.trim()) return '주제영역 ID를 입력하세요.'
-    if (!v.subject_name?.trim()) return '주제영역명을 입력하세요.'
+    if (!v.system_id) return '시스템을 선택하세요.'
+    if (!v.subject_area_id?.trim()) return '주제영역 ID를 입력하세요.'
+    if (!v.subject_area_nm?.trim()) return '주제영역명을 입력하세요.'
     return null
   }
 
@@ -78,7 +79,7 @@ export default function SubjectAreasPage() {
         await create(formValue)
         closePanel()
       } else {
-        await update(selectedRow.subject_id, formValue)
+        await update(selectedRow.subject_area_id, formValue)
         setSelectedRow({ ...selectedRow, ...formValue })
       }
     } catch (e) {
@@ -91,7 +92,7 @@ export default function SubjectAreasPage() {
   const handleDelete = async () => {
     setSaving(true)
     try {
-      await remove(deleteTarget.subject_id)
+      await remove(deleteTarget.subject_area_id)
       setDeleteTarget(null)
       closePanel()
     } catch (e) {
@@ -102,10 +103,11 @@ export default function SubjectAreasPage() {
   }
 
   const getRow = (row) => ({
-    id: row.subject_id,
-    primary: row.subject_name,
-    secondary: row.subject_id,
+    id: row.subject_area_id,
+    primary: row.subject_area_nm,
+    secondary: row.subject_area_id,
     meta: [
+      row.system_nm,
       `단어 ${row.word_count ?? 0}`,
       `용어 ${row.term_count ?? 0}`,
       `도메인 ${row.domain_count ?? 0}`,
@@ -165,7 +167,7 @@ export default function SubjectAreasPage() {
               <MetaList
                 rows={paged}
                 getRow={getRow}
-                selectedId={selectedRow?.subject_id}
+                selectedId={selectedRow?.subject_area_id}
                 onSelect={openEdit}
                 loading={loading}
                 emptyText="등록된 주제영역이 없습니다."
@@ -181,8 +183,8 @@ export default function SubjectAreasPage() {
             empty={!detailOpen}
             emptyTitle="주제영역을 선택하세요"
             emptyHint="목록에서 주제영역을 클릭하면 상세 정보가 여기에 표시됩니다."
-            title={panelMode === 'create' ? '주제영역 등록' : (formValue.subject_name || '주제영역 수정')}
-            subtitle={panelMode === 'edit' ? formValue.subject_id : '새 주제영역 입력'}
+            title={panelMode === 'create' ? '주제영역 등록' : (formValue.subject_area_nm || '주제영역 수정')}
+            subtitle={panelMode === 'edit' ? formValue.subject_area_id : '새 주제영역 입력'}
             onClose={closePanel}
             footer={(
               <>
@@ -213,8 +215,8 @@ export default function SubjectAreasPage() {
         <ConfirmDialog
           message={
             (Number(deleteTarget.word_count) + Number(deleteTarget.term_count) + Number(deleteTarget.domain_count)) > 0
-              ? `"${deleteTarget.subject_name}" 주제영역을 삭제하시겠습니까?\n연결된 단어 ${deleteTarget.word_count}건, 용어 ${deleteTarget.term_count}건, 도메인 ${deleteTarget.domain_count}건의 주제영역이 해제됩니다.`
-              : `"${deleteTarget.subject_name}" 주제영역을 삭제하시겠습니까?`
+              ? `"${deleteTarget.subject_area_nm}" 주제영역을 삭제하시겠습니까?\n연결된 단어 ${deleteTarget.word_count}건, 용어 ${deleteTarget.term_count}건, 도메인 ${deleteTarget.domain_count}건의 주제영역이 해제됩니다.`
+              : `"${deleteTarget.subject_area_nm}" 주제영역을 삭제하시겠습니까?`
           }
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}

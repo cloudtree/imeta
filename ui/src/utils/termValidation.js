@@ -19,15 +19,15 @@ export function parseDataLenNumber(data_len) {
   return parseInt(digits, 10)
 }
 
-/** data_len / data_length 통합 정규화 */
+/** data_len / data_len 통합 정규화 */
 export function normalizeDataLenValue(value, dataType, data_scale) {
   const merged = mergeLegacyLengthScale(value, data_scale, dataType)
   return normalizeDataLengthInput(merged ?? value, dataType)
 }
 
-/** 표준용어 데이터 길이 검증 — data_type 기준 */
-export function validateDataLen(data_len, data_type, data_scale) {
-  return validateDataLength(data_len, data_type, data_scale)
+/** 표준용어 데이터 길이 검증 — data_type_nm 기준 */
+export function validateDataLen(data_len, data_type_nm, data_scale) {
+  return validateDataLength(data_len, data_type_nm, data_scale)
 }
 
 export { DATA_LENGTH_MAX }
@@ -89,14 +89,14 @@ export function resolveLogicalSegments(logical, wordList) {
 
 /** VB GetEng — 앞에서부터 최장 매칭 */
 export function matchWords(text, wordList) {
-  const sorted = [...wordList].sort((a, b) => b.word_nm.length - a.word_nm.length)
+  const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = 0
   while (pos < text.length) {
-    const match = sorted.find((w) => text.startsWith(w.word_nm, pos))
+    const match = sorted.find((w) => text.startsWith(w.std_word_nm, pos))
     if (match) {
       result.push({ word: match, matched: true })
-      pos += match.word_nm.length
+      pos += match.std_word_nm.length
     } else {
       const last = result[result.length - 1]
       if (last && !last.matched) {
@@ -112,16 +112,16 @@ export function matchWords(text, wordList) {
 
 /** VB GetEngRev — 뒤에서부터 최장 매칭 */
 export function matchWordsReverse(text, wordList) {
-  const sorted = [...wordList].sort((a, b) => b.word_nm.length - a.word_nm.length)
+  const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = text.length
   while (pos > 0) {
     const match = sorted.find(
-      (w) => w.word_nm.length <= pos && text.slice(pos - w.word_nm.length, pos) === w.word_nm
+      (w) => w.std_word_nm.length <= pos && text.slice(pos - w.std_word_nm.length, pos) === w.std_word_nm
     )
     if (match) {
       result.unshift({ word: match, matched: true })
-      pos -= match.word_nm.length
+      pos -= match.std_word_nm.length
     } else {
       const first = result[0]
       if (first && !first.matched) {
@@ -145,7 +145,7 @@ export function toPhysical(segments) {
 /** VB HasDup — 동일 단어명이 사전에 2건 이상 */
 export function findHomonyms(matchedWords, allWords) {
   return matchedWords.filter(
-    (w) => allWords.filter((x) => x.word_nm === w.word_nm).length > 1
+    (w) => allWords.filter((x) => x.std_word_nm === w.std_word_nm).length > 1
   )
 }
 
@@ -153,7 +153,7 @@ export function findHomonyms(matchedWords, allWords) {
 export function getSortedWordKey(segments) {
   return segments
     .filter((s) => s.matched)
-    .map((s) => s.word.word_nm)
+    .map((s) => s.word.std_word_nm)
     .sort()
     .join('')
 }
@@ -164,10 +164,10 @@ export function findSynonymTerm(normalizedLogical, segments, existingTerms, word
   if (!key) return null
 
   for (const term of existingTerms) {
-    if (excludeTermId != null && term.term_id === excludeTermId) continue
-    const termNorm = normalizeLogicalTerm(term.logical_term)
+    if (excludeTermId != null && term.std_term_id === excludeTermId) continue
+    const termNorm = normalizeLogicalTerm(term.logical_term_nm)
     if (termNorm === normalizedLogical) continue
-    const termSegs = matchLogicalTerm(term.logical_term, wordList)
+    const termSegs = matchLogicalTerm(term.logical_term_nm, wordList)
     if (getSortedWordKey(termSegs) === key) return term
   }
   return null
@@ -179,45 +179,45 @@ export function findSynonymTerm(normalizedLogical, segments, existingTerms, word
  */
 export function validateTermFields(input, ctx = {}) {
   const {
-    subject_id,
-    logical_term,
-    physical_term,
-    domain_div_cd,
-    domain_id,
-    infotype,
-    data_type,
+    subject_area_id,
+    logical_term_nm,
+    physical_term_nm,
+    domain_group_nm,
+    std_domain_id,
+    info_type_nm,
+    data_type_nm,
     data_len: rawDataLen,
     use_yn,
-    term_id,
+    std_term_id,
   } = input
 
   const data_len = normalizeDataLenValue(
-    mergeLegacyLengthScale(rawDataLen, input.data_scale, data_type) ?? rawDataLen,
-    data_type,
+    mergeLegacyLengthScale(rawDataLen, input.data_scale, data_type_nm) ?? rawDataLen,
+    data_type_nm,
   )
 
   const { words = [], domains = [], existingTerms = [], requireDomainGroup = true } = ctx
   const errors = []
 
-  if (!subject_id?.trim()) errors.push('주제영역을 선택하세요.')
-  if (!logical_term?.trim()) errors.push('논리명을 입력하세요.')
-  if (!physical_term?.trim()) errors.push('물리명을 입력하세요.')
-  if (requireDomainGroup && !domain_div_cd?.trim()) errors.push('도메인 그룹명을 선택하세요.')
-  if (!data_type) errors.push('데이터 타입을 선택하세요.')
+  if (!subject_area_id?.trim()) errors.push('주제영역을 선택하세요.')
+  if (!logical_term_nm?.trim()) errors.push('논리명을 입력하세요.')
+  if (!physical_term_nm?.trim()) errors.push('물리명을 입력하세요.')
+  if (requireDomainGroup && !domain_group_nm?.trim()) errors.push('도메인 그룹명을 선택하세요.')
+  if (!data_type_nm) errors.push('데이터 타입을 선택하세요.')
   if (!data_len?.trim()) errors.push('데이터 길이를 입력하세요.')
   else {
-    const dataLenErr = validateDataLen(data_len, data_type, input.data_scale)
+    const dataLenErr = validateDataLen(data_len, data_type_nm, input.data_scale)
     if (dataLenErr) errors.push(dataLenErr)
   }
 
-  const normalized = normalizeLogicalTerm(logical_term)
+  const normalized = normalizeLogicalTerm(logical_term_nm)
   const {
     segments,
     isAmbiguous,
     physForward,
     physReverse,
-  } = resolveLogicalSegments(logical_term, words)
-  const phys         = (physical_term || '').trim().toUpperCase()
+  } = resolveLogicalSegments(logical_term_nm, words)
+  const phys         = (physical_term_nm || '').trim().toUpperCase()
 
   // VB FindDicEng — 비표준 단어
   if (normalized && words.length > 0) {
@@ -258,7 +258,7 @@ export function validateTermFields(input, ctx = {}) {
       errors.push(`물리명의 마지막 단어 "${lastAbbr}"은 표준단어에 등록되지 않은 약어입니다.`)
     } else if (lastWord.taxon_yn !== 'Y') {
       errors.push(
-        `물리명의 마지막 단어 "${lastAbbr}"(${lastWord.word_nm})은 분류어가 아닙니다. 분류어로 지정된 단어만 사용 가능합니다.`
+        `물리명의 마지막 단어 "${lastAbbr}"(${lastWord.std_word_nm})은 분류어가 아닙니다. 분류어로 지정된 단어만 사용 가능합니다.`
       )
     }
   }
@@ -267,28 +267,28 @@ export function validateTermFields(input, ctx = {}) {
   const matchedWords = segments.filter((s) => s.matched).map((s) => s.word)
   const homonyms     = findHomonyms(matchedWords, words)
   if (homonyms.length > 0) {
-    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`)
+    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`)
   }
 
   // VB Sort — 동의 용어 검토
-  const synonym = findSynonymTerm(normalized, segments, existingTerms, words, term_id ?? null)
+  const synonym = findSynonymTerm(normalized, segments, existingTerms, words, std_term_id ?? null)
   if (synonym) {
-    errors.push(`동의 용어 검토 필요: 등록된 용어 "${synonym.logical_term}"과 단어 구성이 동일합니다.`)
+    errors.push(`동의 용어 검토 필요: 등록된 용어 "${synonym.logical_term_nm}"과 단어 구성이 동일합니다.`)
   }
 
-  if (domain_div_cd && domains.length > 0) {
-    if (!domains.some((d) => d.info_type === domain_div_cd)) {
-      errors.push(`도메인 그룹명 "${domain_div_cd}"에 해당하는 표준 도메인 그룹이 없습니다.`)
+  if (domain_group_nm && domains.length > 0) {
+    if (!domains.some((d) => d.domain_group_nm === domain_group_nm)) {
+      errors.push(`도메인 그룹명 "${domain_group_nm}"에 해당하는 표준 도메인 그룹이 없습니다.`)
     }
   }
 
-  if (domain_div_cd && domain_div_cd !== '코드' && !domain_id && !infotype?.trim()) {
+  if (domain_group_nm && domain_group_nm !== '코드' && !std_domain_id && !info_type_nm?.trim()) {
     errors.push('코드 그룹이 아닌 경우 도메인 인포타입을 입력해야 합니다.')
   }
 
-  const dt = data_type?.trim().toUpperCase()
+  const dt = data_type_nm?.trim().toUpperCase()
   if (dt && !VALID_DATA_TYPES.includes(dt)) {
-    errors.push(`데이터타입 "${data_type}"은 허용되지 않습니다. (${VALID_DATA_TYPES.join(', ')})`)
+    errors.push(`데이터타입 "${data_type_nm}"은 허용되지 않습니다. (${VALID_DATA_TYPES.join(', ')})`)
   }
 
   const yn = use_yn?.trim().toUpperCase()
@@ -310,7 +310,7 @@ export function findDomainsByClassifier(classifierWordNm, domains) {
   if (!classifierWordNm?.trim()) return []
   const nm = classifierWordNm.trim()
   return domains.filter(
-    (d) => d.domain_nm === nm && (d.use_yn ?? 'Y') === 'Y'
+    (d) => d.std_domain_nm === nm && (d.use_yn ?? 'Y') === 'Y'
   )
 }
 
@@ -320,31 +320,31 @@ export function findSimilarDomains(classifierWordNm, domains, excludeIds = new S
   const nm = classifierWordNm.trim()
   return domains.filter((d) => {
     if ((d.use_yn ?? 'Y') !== 'Y') return false
-    if (excludeIds.has(d.domain_id)) return false
-    if (d.domain_nm === nm) return false
-    const infotype = (d.infotype || '').trim()
-    const domainNm = (d.domain_nm || '').trim()
-    return infotype.startsWith(nm) || domainNm.startsWith(nm) || infotype.includes(nm)
+    if (excludeIds.has(d.std_domain_id)) return false
+    if (d.std_domain_nm === nm) return false
+    const info_type_nm = (d.info_type_nm || '').trim()
+    const domainNm = (d.std_domain_nm || '').trim()
+    return info_type_nm.startsWith(nm) || domainNm.startsWith(nm) || info_type_nm.includes(nm)
   })
 }
 
 /**
  * 논리명 마지막 분류어 기준 도메인·그룹 자동 제안
- * @returns {{ suggested, domain_div_cd?, domain_id?, data_type?, data_len?, autoSelected }}
+ * @returns {{ suggested, domain_group_nm?, std_domain_id?, data_type_nm?, data_len?, autoSelected }}
  */
 export function suggestDomainFromClassifier(lastWord, domains) {
   if (!lastWord || lastWord.taxon_yn !== 'Y') {
     return { suggested: [], autoSelected: false }
   }
 
-  const suggested = findDomainsByClassifier(lastWord.word_nm, domains)
+  const suggested = findDomainsByClassifier(lastWord.std_word_nm, domains)
 
   // '코드' 분류어 — 그룹만 지정, 인포타입은 저장 시 자동 생성
-  if (lastWord.word_nm === '코드') {
+  if (lastWord.std_word_nm === '코드') {
     return {
       suggested,
-      domain_div_cd: '코드',
-      domain_id:     '',
+      domain_group_nm: '코드',
+      std_domain_id:     '',
       autoSelected:  true,
     }
   }
@@ -357,20 +357,20 @@ export function suggestDomainFromClassifier(lastWord, domains) {
     const dom = suggested[0]
     return {
       suggested,
-      domain_div_cd: dom.info_type ?? '',
-      domain_id:     dom.domain_id != null ? String(dom.domain_id) : '',
-      data_type:     dom.data_type ?? 'VARCHAR',
-      data_len:      dom.data_length != null ? String(dom.data_length) : '',
+      domain_group_nm: dom.domain_group_nm ?? '',
+      std_domain_id:     dom.std_domain_id != null ? String(dom.std_domain_id) : '',
+      data_type_nm:     dom.data_type_nm ?? 'VARCHAR',
+      data_len:      dom.data_len != null ? String(dom.data_len) : '',
       autoSelected:  true,
     }
   }
 
-  const groups = [...new Set(suggested.map((d) => d.info_type).filter(Boolean))]
+  const groups = [...new Set(suggested.map((d) => d.domain_group_nm).filter(Boolean))]
   if (groups.length === 1) {
     return {
       suggested,
-      domain_div_cd: groups[0],
-      domain_id:     '',
+      domain_group_nm: groups[0],
+      std_domain_id:     '',
       autoSelected:  'partial',
     }
   }
@@ -380,11 +380,11 @@ export function suggestDomainFromClassifier(lastWord, domains) {
 
 /** 엑셀/폼용 — 첫 번째 오류 메시지 반환 */
 export function validateTermRow(row, ctx) {
-  const data_type = row.data_type?.trim().toUpperCase()
+  const data_type_nm = row.data_type_nm?.trim().toUpperCase()
   const data_len = normalizeDataLenValue(
-    mergeLegacyLengthScale(row.data_len ?? row.data_length, row.data_scale, data_type)
-      ?? row.data_len ?? row.data_length,
-    data_type,
+    mergeLegacyLengthScale(row.data_len ?? row.data_len, row.data_scale, data_type_nm)
+      ?? row.data_len ?? row.data_len,
+    data_type_nm,
   )
-  return validateTermFields({ ...row, data_type, data_len }, ctx).firstError
+  return validateTermFields({ ...row, data_type_nm, data_len }, ctx).firstError
 }

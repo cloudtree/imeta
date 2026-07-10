@@ -11,6 +11,8 @@ export default function Layout() {
     || pathname.startsWith('/domains')
     || pathname.startsWith('/subject-areas')
     || pathname.startsWith('/users')
+    || pathname.startsWith('/data-objects')
+    || pathname.startsWith('/database/data-models')
   const isWideContent =
     isSplitContent
     || pathname.startsWith('/servers')

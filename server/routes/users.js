@@ -5,7 +5,7 @@ import { hashPassword } from '../userPassword.js'
 const router = Router()
 
 const USER_SELECT = `
-  user_id, username, user_nm, email, dept_nm, role_cd, use_yn, created_at, updated_at
+  user_id, login_id, user_nm, email_nm, dept_nm, role_cd, use_yn, reg_dtm, upd_dtm
 `
 
 function normalizeRole(v) {
@@ -19,17 +19,17 @@ function normalizeYn(v, fallback = 'Y') {
 }
 
 function validateUserPayload(body, { requirePassword = true } = {}) {
-  const username = body.username?.trim()
+  const login_id = body.login_id?.trim()
   const password = body.password ?? ''
   const user_nm = body.user_nm?.trim() ?? ''
-  const email = body.email?.trim() || null
+  const email_nm = body.email_nm?.trim() || null
   const dept_nm = body.dept_nm?.trim() || null
   const role_cd = normalizeRole(body.role_cd)
   const use_yn = normalizeYn(body.use_yn)
 
-  if (!username) return { error: '사용자 ID를 입력하세요.' }
-  if (username.length > 50) return { error: '사용자 ID는 최대 50자입니다.' }
-  if (!/^[A-Za-z0-9._@-]+$/.test(username)) {
+  if (!login_id) return { error: '사용자 ID를 입력하세요.' }
+  if (login_id.length > 50) return { error: '사용자 ID는 최대 50자입니다.' }
+  if (!/^[A-Za-z0-9._@-]+$/.test(login_id)) {
     return { error: '사용자 ID는 영문, 숫자, . _ @ - 만 사용할 수 있습니다.' }
   }
   if (!user_nm) return { error: '사용자명을 입력하세요.' }
@@ -39,14 +39,14 @@ function validateUserPayload(body, { requirePassword = true } = {}) {
   } else if (password && String(password).length < 4) {
     return { error: '비밀번호는 4자 이상이어야 합니다.' }
   }
-  if (email && email.length > 200) return { error: '이메일은 최대 200자입니다.' }
+  if (email_nm && email_nm.length > 200) return { error: '이메일은 최대 200자입니다.' }
 
   return {
     data: {
-      username,
+      login_id,
       password: password || null,
       user_nm,
-      email,
+      email_nm,
       dept_nm,
       role_cd,
       use_yn,
@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`)
       const n = params.length
       conditions.push(
-        `(username ILIKE $${n} OR user_nm ILIKE $${n} OR COALESCE(email, '') ILIKE $${n} OR COALESCE(dept_nm, '') ILIKE $${n})`,
+        `(login_id ILIKE $${n} OR user_nm ILIKE $${n} OR COALESCE(email_nm, '') ILIKE $${n} OR COALESCE(dept_nm, '') ILIKE $${n})`,
       )
     }
     if (use_yn) {
@@ -80,13 +80,13 @@ router.get('/', async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const offset = (Number(page) - 1) * Number(limit)
 
-    const countResult = await pool.query(`SELECT COUNT(*) FROM meta_users ${where}`, params)
+    const countResult = await pool.query(`SELECT COUNT(*) FROM meta_user_m ${where}`, params)
     const total = Number(countResult.rows[0].count)
 
     params.push(Number(limit), offset)
     const dataResult = await pool.query(
       `SELECT ${USER_SELECT}
-       FROM meta_users
+       FROM meta_user_m
        ${where}
        ORDER BY user_id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -125,15 +125,15 @@ router.post('/bulk', async (req, res) => {
 
         const password_hash = await hashPassword(data.password)
         const { rows: inserted } = await client.query(
-          `INSERT INTO meta_users
-             (username, password_hash, user_nm, email, dept_nm, role_cd, use_yn)
+          `INSERT INTO meta_user_m
+             (login_id, password_hash, user_nm, email_nm, dept_nm, role_cd, use_yn)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING ${USER_SELECT}`,
           [
-            data.username,
+            data.login_id,
             password_hash,
             data.user_nm,
-            data.email,
+            data.email_nm,
             data.dept_nm,
             data.role_cd,
             data.use_yn,
@@ -143,7 +143,7 @@ router.post('/bulk', async (req, res) => {
       } catch (e) {
         await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`)
         const message = e.code === '23505'
-          ? `사용자 ID "${r.username?.trim()}"는 이미 등록되어 있습니다.`
+          ? `사용자 ID "${r.login_id?.trim()}"는 이미 등록되어 있습니다.`
           : e.message
         errors.push({ row: rowNum, data: r, message })
       }
@@ -162,7 +162,7 @@ router.post('/bulk', async (req, res) => {
 // DELETE /api/users/all
 router.delete('/all', async (_req, res) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM meta_users')
+    const { rowCount } = await pool.query('DELETE FROM meta_user_m')
     res.json({ deleted: rowCount })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -173,7 +173,7 @@ router.delete('/all', async (_req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT ${USER_SELECT} FROM meta_users WHERE user_id = $1`,
+      `SELECT ${USER_SELECT} FROM meta_user_m WHERE user_id = $1`,
       [req.params.id],
     )
     if (!rows[0]) return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' })
@@ -191,15 +191,15 @@ router.post('/', async (req, res) => {
 
     const password_hash = await hashPassword(data.password)
     const { rows } = await pool.query(
-      `INSERT INTO meta_users
-         (username, password_hash, user_nm, email, dept_nm, role_cd, use_yn)
+      `INSERT INTO meta_user_m
+         (login_id, password_hash, user_nm, email_nm, dept_nm, role_cd, use_yn)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING ${USER_SELECT}`,
       [
-        data.username,
+        data.login_id,
         password_hash,
         data.user_nm,
-        data.email,
+        data.email_nm,
         data.dept_nm,
         data.role_cd,
         data.use_yn,
@@ -208,7 +208,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(rows[0])
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ message: `사용자 ID "${req.body?.username?.trim()}"는 이미 등록되어 있습니다.` })
+      return res.status(409).json({ message: `사용자 ID "${req.body?.login_id?.trim()}"는 이미 등록되어 있습니다.` })
     }
     res.status(500).json({ message: err.message })
   }
@@ -221,7 +221,7 @@ router.put('/:id', async (req, res) => {
     if (error) return res.status(400).json({ message: error })
 
     const existing = await pool.query(
-      'SELECT user_id FROM meta_users WHERE user_id = $1',
+      'SELECT user_id FROM meta_user_m WHERE user_id = $1',
       [req.params.id],
     )
     if (!existing.rows[0]) return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' })
@@ -230,16 +230,16 @@ router.put('/:id', async (req, res) => {
     if (data.password) {
       const password_hash = await hashPassword(data.password)
       ;({ rows } = await pool.query(
-        `UPDATE meta_users SET
-           username = $1, password_hash = $2, user_nm = $3, email = $4,
-           dept_nm = $5, role_cd = $6, use_yn = $7, updated_at = NOW()
+        `UPDATE meta_user_m SET
+           login_id = $1, password_hash = $2, user_nm = $3, email_nm = $4,
+           dept_nm = $5, role_cd = $6, use_yn = $7, upd_dtm = NOW()
          WHERE user_id = $8
          RETURNING ${USER_SELECT}`,
         [
-          data.username,
+          data.login_id,
           password_hash,
           data.user_nm,
-          data.email,
+          data.email_nm,
           data.dept_nm,
           data.role_cd,
           data.use_yn,
@@ -248,15 +248,15 @@ router.put('/:id', async (req, res) => {
       ))
     } else {
       ;({ rows } = await pool.query(
-        `UPDATE meta_users SET
-           username = $1, user_nm = $2, email = $3,
-           dept_nm = $4, role_cd = $5, use_yn = $6, updated_at = NOW()
+        `UPDATE meta_user_m SET
+           login_id = $1, user_nm = $2, email_nm = $3,
+           dept_nm = $4, role_cd = $5, use_yn = $6, upd_dtm = NOW()
          WHERE user_id = $7
          RETURNING ${USER_SELECT}`,
         [
-          data.username,
+          data.login_id,
           data.user_nm,
-          data.email,
+          data.email_nm,
           data.dept_nm,
           data.role_cd,
           data.use_yn,
@@ -268,7 +268,7 @@ router.put('/:id', async (req, res) => {
     res.json(rows[0])
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ message: `사용자 ID "${req.body?.username?.trim()}"는 이미 등록되어 있습니다.` })
+      return res.status(409).json({ message: `사용자 ID "${req.body?.login_id?.trim()}"는 이미 등록되어 있습니다.` })
     }
     res.status(500).json({ message: err.message })
   }
@@ -278,7 +278,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { rowCount } = await pool.query(
-      'DELETE FROM meta_users WHERE user_id = $1',
+      'DELETE FROM meta_user_m WHERE user_id = $1',
       [req.params.id],
     )
     if (!rowCount) return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' })

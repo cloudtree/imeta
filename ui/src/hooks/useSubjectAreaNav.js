@@ -25,8 +25,8 @@ export function useSubjectAreaNav() {
 
   const navItems = useMemo(
     () => areas.map((s) => ({
-      id: s.subject_id,
-      label: s.subject_name || s.subject_id,
+      id: s.subject_area_id,
+      label: s.subject_area_nm || s.subject_area_id,
       count: undefined,
       raw: s,
     })),

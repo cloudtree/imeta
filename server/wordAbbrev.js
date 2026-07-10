@@ -197,7 +197,79 @@ export function abbreviateEnglishName(fullName) {
   return combined.slice(0, MAX_ABB_LEN)
 }
 
-/** 영문 Full Name 정규화 (Title Case, 단수형 s 제거는 입력 단어 기준) */
+/** 단수형이지만 s로 끝나는 영문 (복수형으로 보지 않음) */
+const SINGULAR_ENDING_S = new Set([
+  'address', 'business', 'status', 'analysis', 'basis', 'crisis', 'diagnosis',
+  'campus', 'class', 'cross', 'news', 'series', 'species', 'means', 'physics',
+  'mathematics', 'economics', 'athletics', 'graphics', 'bonus', 'bus', 'gas',
+  'plus', 'alias', 'canvas', 'census', 'focus', 'virus', 'access', 'process',
+  'success', 'progress', 'express', 'congress', 'compass', 'surplus', 'always',
+  'across', 'various', 'previous', 'serious', 'famous', 'dangerous',
+])
+
+/** 약어 예외 — s로 끝나지만 복수형 약어가 아님 */
+const ABB_ENDING_S_OK = new Set([
+  'STS', 'BUS', 'CLASS', 'ACCESS', 'NEWS', 'BASIS', 'STATUS', 'CROSS', 'PLUS',
+  'GAS', 'AS', 'IS', 'OS', 'CMS', 'POS', 'CDS',
+])
+
+function toSingularToken(word) {
+  let w = (word || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!w) return w
+  if (SINGULAR_ENDING_S.has(w)) return w
+  if (w.endsWith('ies') && w.length > 4) return `${w.slice(0, -3)}y`
+  if (w.endsWith('sses') && w.length > 4) return w.slice(0, -2)
+  if (w.endsWith('ss') || w.endsWith('us') || w.endsWith('is') || w.endsWith('ous')) return w
+  if (w.endsWith('s') && w.length > 3) return w.slice(0, -1)
+  return w
+}
+
+/** 영문 토큰이 복수형(~s / ~ies)인지 */
+export function isPluralEnglishToken(token) {
+  const raw = (token || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!raw || raw.length <= 3) return false
+  if (SINGULAR_ENDING_S.has(raw)) return false
+  if (raw.endsWith('ss') || raw.endsWith('us') || raw.endsWith('is') || raw.endsWith('ous')) return false
+  if (raw.endsWith('ies') && raw.length > 4) return true
+  if (raw.endsWith('s')) return true
+  return false
+}
+
+/** 영문명(전체)에서 복수형 단어 목록 */
+export function findPluralEnglishWords(raw) {
+  const cleaned = (raw || '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-zA-Z\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return []
+  return cleaned
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .filter((w) => isPluralEnglishToken(w))
+}
+
+/**
+ * 영문명·약어 복수형 검증
+ * @returns {string|null} 오류 메시지
+ */
+export function validateNoPluralEnglish({ full_eng_nm, all_word_nm, abb_word_nm } = {}) {
+  const plurals = findPluralEnglishWords(full_eng_nm || all_word_nm)
+  if (plurals.length) {
+    return `영문명은 단수형만 사용할 수 있습니다. 복수형(~s) 불가: ${plurals.join(', ')}`
+  }
+  const abb = String(abb_word_nm || '').trim().toUpperCase()
+  if (abb && abb.endsWith('S') && abb.length >= 4 && !ABB_ENDING_S_OK.has(abb)) {
+    const stem = abb.slice(0, -1)
+    // DTLS → DTL 처럼 어간이 3자 이상 알파벳이면 복수형 약어로 간주
+    if (/^[A-Z]+$/.test(stem) && stem.length >= 3) {
+      return `영문약어에 복수형(~S)을 사용할 수 없습니다. (예: ${abb} → ${stem})`
+    }
+  }
+  return null
+}
+
+/** 영문 Full Name 정규화 (Title Case, 단수형) */
 export function normalizeEnglishFullName(raw) {
   const cleaned = (raw || '')
     .replace(/\([^)]*\)/g, ' ')
@@ -207,22 +279,12 @@ export function normalizeEnglishFullName(raw) {
 
   if (!cleaned) return ''
 
-  const words = cleaned.split(' ').map((w) => {
-    let word = w.toLowerCase()
-    if (word.endsWith('s') && word.length > 3 && !word.endsWith('ss')) {
-      const singular = word.slice(0, -1)
-      if (STANDARD_ABBREVS.has(singular) || singular.length >= 3) {
-        word = singular
-      }
-    }
-    return word
-  })
-
+  const words = cleaned.split(' ').map((w) => toSingularToken(w))
   return toTitleCase(words.join(' '))
 }
 
 export function buildEnglishSuggestion(primaryEnglish) {
-  const all_word_nm = normalizeEnglishFullName(primaryEnglish)
-  const abb_word_nm = abbreviateEnglishName(all_word_nm)
-  return { all_word_nm, abb_word_nm }
+  const full_eng_nm = normalizeEnglishFullName(primaryEnglish)
+  const abb_word_nm = abbreviateEnglishName(full_eng_nm)
+  return { full_eng_nm, abb_word_nm }
 }

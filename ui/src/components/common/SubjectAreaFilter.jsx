@@ -20,8 +20,8 @@ export default function SubjectAreaFilter({ value = '', onChange, style }) {
     >
       <option value="">전체 주제영역</option>
       {options.map((s) => (
-        <option key={s.subject_id} value={s.subject_id}>
-          {s.subject_id} – {s.subject_name}
+        <option key={s.subject_area_id} value={s.subject_area_id}>
+          {s.subject_area_id} – {s.subject_area_nm}
         </option>
       ))}
     </select>

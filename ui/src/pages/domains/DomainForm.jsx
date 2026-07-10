@@ -3,14 +3,14 @@ import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/S
 import { buildInfotype, LENGTH_TYPES } from '../../utils/domainInfotype'
 
 const EMPTY = {
-  domain_nm:   '',
-  data_type:   'VARCHAR',
-  info_type:   '',
-  data_length: '',
-  domain_desc: '',
+  std_domain_nm:   '',
+  data_type_nm:   'VARCHAR',
+  domain_group_nm:   '',
+  data_len: '',
+  std_domain_desc: '',
   use_yn:      'Y',
-  subject_id:  DEFAULT_SUBJECT_ID,
-  infotype:    '',
+  subject_area_id:  DEFAULT_SUBJECT_ID,
+  info_type_nm:    '',
 }
 
 const DATA_TYPES = ['VARCHAR', 'CHAR', 'NUMBER', 'INTEGER', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'CLOB']
@@ -18,35 +18,35 @@ const DATA_TYPES = ['VARCHAR', 'CHAR', 'NUMBER', 'INTEGER', 'DATE', 'TIMESTAMP',
 export default function DomainForm({ value, onChange, groups = [] }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value })
 
-  const hasLength = LENGTH_TYPES.includes(value.data_type)
-  const isScaleType = ['NUMBER', 'INTEGER'].includes(value.data_type)
+  const hasLength = LENGTH_TYPES.includes(value.data_type_nm)
+  const isScaleType = ['NUMBER', 'INTEGER'].includes(value.data_type_nm)
 
   useEffect(() => {
-    const generated = buildInfotype(value.domain_nm, value.data_type, value.data_length)
-    if (value.infotype !== generated) {
-      onChange({ ...value, infotype: generated })
+    const generated = buildInfotype(value.std_domain_nm, value.data_type_nm, value.data_len)
+    if (value.info_type_nm !== generated) {
+      onChange({ ...value, info_type_nm: generated })
     }
-  }, [value.domain_nm, value.data_type, value.data_length]) // eslint-disable-line
+  }, [value.std_domain_nm, value.data_type_nm, value.data_len]) // eslint-disable-line
 
   return (
     <>
       <div className="form-group">
         <label className="form-label required">주제영역</label>
         <SubjectAreaSelect
-          value={value.subject_id}
-          onChange={(v) => onChange({ ...value, subject_id: v })}
+          value={value.subject_area_id}
+          onChange={(v) => onChange({ ...value, subject_area_id: v })}
         />
       </div>
 
       <div className="form-group">
         <label className="form-label required">도메인 그룹명</label>
-        <select className="form-control" value={value.info_type} onChange={set('info_type')}>
+        <select className="form-control" value={value.domain_group_nm} onChange={set('domain_group_nm')}>
           <option value="">— 선택하세요 —</option>
           {groups.filter((g) => g.use_yn === 'Y').map((g) => (
-            <option key={g.group_id} value={g.group_nm}>{g.group_nm}</option>
+            <option key={g.domain_group_id} value={g.domain_group_nm}>{g.domain_group_nm}</option>
           ))}
-          {value.info_type && !groups.some((g) => g.group_nm === value.info_type) && (
-            <option value={value.info_type}>{value.info_type}</option>
+          {value.domain_group_nm && !groups.some((g) => g.domain_group_nm === value.domain_group_nm) && (
+            <option value={value.domain_group_nm}>{value.domain_group_nm}</option>
           )}
         </select>
         {groups.length === 0 && (
@@ -58,13 +58,13 @@ export default function DomainForm({ value, onChange, groups = [] }) {
 
       <div className="form-group">
         <label className="form-label required">도메인명</label>
-        <input className="form-control" value={value.domain_nm} onChange={set('domain_nm')} placeholder="예: 이름, 금액, 일자" maxLength={100} />
+        <input className="form-control" value={value.std_domain_nm} onChange={set('std_domain_nm')} placeholder="예: 이름, 금액, 일자" maxLength={100} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <div className="form-group">
           <label className="form-label required">데이터 타입</label>
-          <select className="form-control" value={value.data_type} onChange={set('data_type')}>
+          <select className="form-control" value={value.data_type_nm} onChange={set('data_type_nm')}>
             {DATA_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
@@ -74,8 +74,8 @@ export default function DomainForm({ value, onChange, groups = [] }) {
             <label className="form-label required">데이터 길이</label>
             <input
               className="form-control"
-              value={value.data_length ?? ''}
-              onChange={set('data_length')}
+              value={value.data_len ?? ''}
+              onChange={set('data_len')}
               placeholder={isScaleType ? '예: 7,2' : '예: 100'}
               maxLength={100}
             />
@@ -112,7 +112,7 @@ export default function DomainForm({ value, onChange, groups = [] }) {
         </label>
         <input
           className="form-control"
-          value={value.infotype ?? ''}
+          value={value.info_type_nm ?? ''}
           readOnly
           placeholder="도메인명·타입·길이 입력 시 자동생성"
           style={{ fontFamily: 'monospace', fontWeight: 500, background: '#f3f4f6', cursor: 'default' }}
@@ -121,7 +121,7 @@ export default function DomainForm({ value, onChange, groups = [] }) {
 
       <div className="form-group">
         <label className="form-label">설명</label>
-        <textarea className="form-control" value={value.domain_desc} onChange={set('domain_desc')} placeholder="도메인의 업무적 의미와 허용 값 범위를 기술하세요." rows={3} />
+        <textarea className="form-control" value={value.std_domain_desc} onChange={set('std_domain_desc')} placeholder="도메인의 업무적 의미와 허용 값 범위를 기술하세요." rows={3} />
       </div>
     </>
   )

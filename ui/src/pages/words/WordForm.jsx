@@ -3,14 +3,14 @@ import SubjectAreaSelect, { DEFAULT_SUBJECT_ID } from '../../components/common/S
 import { wordsApi } from '../../api/words'
 
 const EMPTY = {
-  word_nm: '',
+  std_word_nm: '',
   abb_word_nm: '',
-  all_word_nm: '',
+  full_eng_nm: '',
   kor_synonym_nm: '',
   taxon_yn: 'N',
-  word_desc: '',
+  std_word_desc: '',
   use_yn: 'Y',
-  subject_id: DEFAULT_SUBJECT_ID,
+  subject_area_id: DEFAULT_SUBJECT_ID,
 }
 
 export default function WordForm({ value, onChange }) {
@@ -24,7 +24,7 @@ export default function WordForm({ value, onChange }) {
 
   // 단어명 입력 시 네이버 사전 → 영문명·영문약어·설명 자동 입력
   useEffect(() => {
-    const word = value.word_nm?.trim()
+    const word = value.std_word_nm?.trim()
     if (!word) {
       setLookupError(null)
       return undefined
@@ -46,14 +46,14 @@ export default function WordForm({ value, onChange }) {
         const errors = []
 
         if (enResult.status === 'fulfilled') {
-          patch.all_word_nm = enResult.value.all_word_nm
+          patch.full_eng_nm = enResult.value.full_eng_nm
           patch.abb_word_nm = enResult.value.abb_word_nm
         } else {
           errors.push(enResult.reason?.message ?? '영문명 조회 실패')
         }
 
         if (descResult.status === 'fulfilled') {
-          patch.word_desc = descResult.value.definition
+          patch.std_word_desc = descResult.value.definition
         } else {
           errors.push(descResult.reason?.message ?? '설명 조회 실패')
         }
@@ -66,15 +66,15 @@ export default function WordForm({ value, onChange }) {
     }, 400)
 
     return () => clearTimeout(timer)
-  }, [value.word_nm]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value.std_word_nm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
       <div className="form-group">
         <label className="form-label required">주제영역</label>
         <SubjectAreaSelect
-          value={value.subject_id}
-          onChange={(v) => onChange({ ...value, subject_id: v })}
+          value={value.subject_area_id}
+          onChange={(v) => onChange({ ...value, subject_area_id: v })}
         />
       </div>
 
@@ -84,7 +84,7 @@ export default function WordForm({ value, onChange }) {
             단어명
             {loading && <span className="spinner" style={{ marginLeft: 8, width: 14, height: 14 }} />}
           </label>
-          <input className="form-control" value={value.word_nm} onChange={set('word_nm')} placeholder="예: 고객" maxLength={15} />
+          <input className="form-control" value={value.std_word_nm} onChange={set('std_word_nm')} placeholder="예: 고객" maxLength={15} />
           {lookupError && (
             <span className="form-hint" style={{ color: '#ef4444' }}>{lookupError}</span>
           )}
@@ -92,7 +92,8 @@ export default function WordForm({ value, onChange }) {
 
         <div className="form-group">
           <label className="form-label required">영문명 (전체)</label>
-          <input className="form-control" value={value.all_word_nm} onChange={set('all_word_nm')} placeholder="예: Customer" maxLength={100} />
+          <input className="form-control" value={value.full_eng_nm} onChange={set('full_eng_nm')} placeholder="예: Customer" maxLength={100} />
+          <span className="form-hint">단수형만 사용 (복수형 ~s 불가). 예: Detail (O), Details (X)</span>
         </div>
       </div>
 
@@ -129,7 +130,7 @@ export default function WordForm({ value, onChange }) {
 
       <div className="form-group">
         <label className="form-label">설명</label>
-        <textarea className="form-control" value={value.word_desc} onChange={set('word_desc')} placeholder="단어명 입력 시 네이버 국어사전 뜻풀이가 자동 입력됩니다." rows={3} />
+        <textarea className="form-control" value={value.std_word_desc} onChange={set('std_word_desc')} placeholder="단어명 입력 시 네이버 국어사전 뜻풀이가 자동 입력됩니다." rows={3} />
       </div>
     </>
   )

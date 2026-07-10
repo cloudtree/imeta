@@ -5,22 +5,22 @@ import { requireAuth } from '../middleware/requireAuth.js'
 const router = Router()
 
 router.post('/login', async (req, res) => {
-  const username = req.body?.username?.trim()
+  const login_id = req.body?.login_id?.trim()
   const password = req.body?.password ?? ''
 
-  if (!username || !password) {
+  if (!login_id || !password) {
     return res.status(400).json({ message: '사용자명과 비밀번호를 입력하세요.' })
   }
 
   try {
-    const user = await verifyCredentials(username, password)
+    const user = await verifyCredentials(login_id, password)
     if (!user) {
       return res.status(401).json({ message: '사용자명 또는 비밀번호가 올바르지 않습니다.' })
     }
 
     res.json({
-      token: createToken(user.username, user.role_cd),
-      username: user.username,
+      token: createToken(user.login_id, user.role_cd),
+      login_id: user.login_id,
       role_cd: user.role_cd,
     })
   } catch (err) {
@@ -31,7 +31,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   res.json({
-    username: req.user.username,
+    login_id: req.user.login_id,
     role_cd: req.user.role_cd,
   })
 })

@@ -1,7 +1,7 @@
 import { api, setAuthToken } from './client'
 
-export async function login(username, password) {
-  const data = await api.post('/auth/login', { username, password })
+export async function login(login_id, password) {
+  const data = await api.post('/auth/login', { login_id, password })
   setAuthToken(data.token)
   return data
 }

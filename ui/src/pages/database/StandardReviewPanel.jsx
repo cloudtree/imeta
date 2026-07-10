@@ -74,9 +74,9 @@ function EntityBlock({ group }) {
         <div className="sr-cloud-block__identity">
           <span className="sr-cloud-block__kind">엔티티 · 테이블</span>
           <h3 className="sr-cloud-block__title">
-            {group.entity_name || '(엔티티명 없음)'}
+            {group.entity_nm || '(엔티티명 없음)'}
             <span className="sr-cloud-block__sep">/</span>
-            <code>{group.table_name || '-'}</code>
+            <code>{group.table_nm || '-'}</code>
           </h3>
         </div>
         <StatusPill status={group.entityReview.status} />
@@ -93,9 +93,9 @@ function AttributeBlock({ row }) {
         <div className="sr-cloud-block__identity">
           <span className="sr-cloud-block__kind">속성 · 컬럼</span>
           <h3 className="sr-cloud-block__title">
-            {row.attribute_name || '(속성명 없음)'}
+            {row.attribute_nm || '(속성명 없음)'}
             <span className="sr-cloud-block__sep">/</span>
-            <code>{row.column_name || '-'}</code>
+            <code>{row.column_nm || '-'}</code>
           </h3>
         </div>
         <StatusPill status={row.status} />
@@ -166,7 +166,7 @@ export default function StandardReviewPanel({ groups = [], onClose }) {
                 <EntityBlock group={group} />
               )}
               {group.rows.map((row) => (
-                <AttributeBlock key={row.def_id} row={row} />
+                <AttributeBlock key={row.table_def_id} row={row} />
               ))}
             </article>
           ))}

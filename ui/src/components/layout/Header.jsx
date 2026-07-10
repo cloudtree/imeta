@@ -24,6 +24,7 @@ const NAV_MENUS = [
     id: 'database',
     label: '데이터베이스',
     items: [
+      { to: '/database/data-models', label: '데이터 모델 관리', desc: '논리·물리 데이터 모델' },
       { to: '/servers/register', label: '서버등록', desc: 'DB 서버 연결 정보' },
       { to: '/database/review', label: '데이터베이스검토', desc: '스키마와 표준 비교' },
       {
@@ -35,10 +36,11 @@ const NAV_MENUS = [
   },
   {
     id: 'imeta',
-    label: 'iMeta관리',
+    label: 'iMETA관리',
     adminOnly: true,
     items: [
       { to: '/users', label: '사용자 관리', desc: '계정 등록·수정·삭제' },
+      { to: '/data-objects', label: '전사 표준 관리', desc: '시스템별 DB 객체 명명규칙' },
     ],
   },
 ]
@@ -150,8 +152,8 @@ export default function Header() {
                 title="메타데이터 현황"
                 aria-label="메타데이터 현황"
               >
-                <RoaringCat size={22} idPrefix="nav-cat" animated={false} />
-                <span className="apple-nav__brand-text">Meta</span>
+                <RoaringCat size={28} className="apple-nav__brand-logo" />
+                <span className="apple-nav__brand-text">iMETA</span>
               </NavLink>
             </li>
             {menus.map((menu) => {
@@ -181,7 +183,7 @@ export default function Header() {
               </button>
             </li>
             <li className="apple-nav__account" onMouseEnter={closeFlyout}>
-              <span className="apple-nav__user">{user?.username || ''}</span>
+              <span className="apple-nav__user">{user?.login_id || ''}</span>
               <button
                 type="button"
                 className="apple-nav__logout"
@@ -249,9 +251,9 @@ export default function Header() {
             aria-label="메타데이터 현황"
             onClick={() => setMobileOpen(false)}
           >
-            <RoaringCat size={22} idPrefix="nav-cat-mobile" animated={false} />
+            <RoaringCat size={28} className="apple-nav__brand-logo" />
           </NavLink>
-          <span className="apple-nav__user">{user?.username || ''}</span>
+          <span className="apple-nav__user">{user?.login_id || ''}</span>
         </nav>
       )}
 
@@ -274,7 +276,7 @@ export default function Header() {
               aria-label="메타데이터 현황"
               onClick={() => setMobileOpen(false)}
             >
-              <RoaringCat size={24} idPrefix="nav-cat-panel" animated={false} />
+              <RoaringCat size={32} className="apple-nav__brand-logo" />
             </NavLink>
           </div>
           <input

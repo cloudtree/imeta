@@ -89,8 +89,8 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
   const items = []
   let status = 'ok'
 
-  const entityName = row.entity_name?.trim() || ''
-  const tableName = row.table_name?.trim() || ''
+  const entityName = row.entity_nm?.trim() || ''
+  const tableName = row.table_nm?.trim() || ''
   const typeInfo = extractEntityTypeSuffix(entityName)
 
   if (!entityName) {
@@ -157,7 +157,7 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
       }))
     } else {
       const breakdown = [
-        ...matchedWords.map((w) => `${w.word_nm}(${w.abb_word_nm})`),
+        ...matchedWords.map((w) => `${w.std_word_nm}(${w.abb_word_nm})`),
         `${typeInfo.suffix}(${typeInfo.code})`,
       ].join(' + ')
       status = bumpStatus(status, addItem(items, {
@@ -180,7 +180,7 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
         status = bumpStatus(status, addItem(items, {
           category: '엔티티명',
           level: 'warning',
-          message: `동음이의어 확인: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`,
+          message: `동음이의어 확인: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`,
         }))
       }
     }
@@ -248,12 +248,12 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
   const items = []
   let status = 'ok'
 
-  const attributeName = row.attribute_name?.trim() || ''
-  const columnName = row.column_name?.trim() || ''
-  const domainName = row.domain_name?.trim() || ''
-  const infotype = row.infotype?.trim() || ''
-  const dataType = row.data_type?.trim() || ''
-  const dataLength = row.data_length?.trim() || ''
+  const attributeName = row.attribute_nm?.trim() || ''
+  const columnName = row.column_nm?.trim() || ''
+  const domainName = row.domain_nm?.trim() || ''
+  const info_type_nm = row.info_type_nm?.trim() || ''
+  const dataType = row.data_type_nm?.trim() || ''
+  const dataLength = row.data_len?.trim() || ''
 
   const normalizedAttr = normalizeLogicalTerm(attributeName)
   const { segments, isAmbiguous, physForward, physReverse } = resolveLogicalSegments(attributeName, words)
@@ -286,7 +286,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
     }))
   } else {
     const breakdown = matchedWords
-      .map((w) => `${w.word_nm}(${w.abb_word_nm}${w.taxon_yn === 'Y' ? ', 분류어' : ''})`)
+      .map((w) => `${w.std_word_nm}(${w.abb_word_nm}${w.taxon_yn === 'Y' ? ', 분류어' : ''})`)
       .join(' + ')
     status = bumpStatus(status, addItem(items, {
       category: '표준단어',
@@ -300,7 +300,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
       status = bumpStatus(status, addItem(items, {
         category: '표준단어',
         level: 'warning',
-        message: `동음이의어: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`,
+        message: `동음이의어: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`,
       }))
     }
 
@@ -317,13 +317,13 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
       status = bumpStatus(status, addItem(items, {
         category: '표준단어',
         level: 'warning',
-        message: `마지막 단어 "${lastWord.word_nm}"은 분류어가 아닙니다.`,
+        message: `마지막 단어 "${lastWord.std_word_nm}"은 분류어가 아닙니다.`,
       }))
     }
   }
 
   const exactTerm = terms.find(
-    (t) => normalizeLogicalTerm(t.logical_term) === normalizedAttr && (t.use_yn ?? 'Y') === 'Y',
+    (t) => normalizeLogicalTerm(t.logical_term_nm) === normalizedAttr && (t.use_yn ?? 'Y') === 'Y',
   )
 
   if (!terms.length) {
@@ -336,20 +336,20 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
     status = bumpStatus(status, addItem(items, {
       category: '표준용어',
       level: 'ok',
-      message: `표준용어 일치: "${exactTerm.logical_term}"`,
+      message: `표준용어 일치: "${exactTerm.logical_term_nm}"`,
       detail: [
-        `물리명: ${exactTerm.physical_term}`,
-        exactTerm.domain_div_cd ? `도메인그룹: ${exactTerm.domain_div_cd}` : null,
-        exactTerm.data_type ? `데이터타입: ${exactTerm.data_type}` : null,
+        `물리명: ${exactTerm.physical_term_nm}`,
+        exactTerm.domain_group_nm ? `도메인그룹: ${exactTerm.domain_group_nm}` : null,
+        exactTerm.data_type_nm ? `데이터타입: ${exactTerm.data_type_nm}` : null,
         exactTerm.data_len ? `데이터길이: ${exactTerm.data_len}` : null,
       ].filter(Boolean).join(' · '),
     }))
 
-    if (columnName && normPhysical(exactTerm.physical_term) !== normPhysical(columnName)) {
+    if (columnName && normPhysical(exactTerm.physical_term_nm) !== normPhysical(columnName)) {
       status = bumpStatus(status, addItem(items, {
         category: '표준용어',
         level: 'error',
-        message: `컬럼명 불일치 (정의서: ${columnName}, 표준: ${exactTerm.physical_term})`,
+        message: `컬럼명 불일치 (정의서: ${columnName}, 표준: ${exactTerm.physical_term_nm})`,
       }))
     }
   } else {
@@ -369,7 +369,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
     }
 
     const similarTerms = terms.filter((t) => {
-      const termNorm = normalizeLogicalTerm(t.logical_term)
+      const termNorm = normalizeLogicalTerm(t.logical_term_nm)
       return termNorm.includes(normalizedAttr) || normalizedAttr.includes(termNorm)
     }).slice(0, 3)
 
@@ -377,7 +377,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
       status = bumpStatus(status, addItem(items, {
         category: '표준용어',
         level: 'info',
-        message: `유사 용어: ${similarTerms.map((t) => `"${t.logical_term}"(${t.physical_term})`).join(', ')}`,
+        message: `유사 용어: ${similarTerms.map((t) => `"${t.logical_term_nm}"(${t.physical_term_nm})`).join(', ')}`,
       }))
     }
   }
@@ -388,7 +388,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
       status = bumpStatus(status, addItem(items, {
         category: '표준용어',
         level: 'warning',
-        message: `동의 용어: "${synonym.logical_term}"(${synonym.physical_term})`,
+        message: `동의 용어: "${synonym.logical_term_nm}"(${synonym.physical_term_nm})`,
       }))
     }
   }
@@ -403,7 +403,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
     if (domainName) {
       const byName = domains.filter(
         (d) => (d.use_yn ?? 'Y') === 'Y'
-          && (d.domain_nm === domainName || (d.infotype || '').includes(domainName)),
+          && (d.std_domain_nm === domainName || (d.info_type_nm || '').includes(domainName)),
       )
       if (byName.length === 0) {
         status = bumpStatus(status, addItem(items, {
@@ -416,7 +416,7 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'ok',
-          message: `도메인명 매칭: ${dom.domain_nm} (${dom.infotype || '-'})`,
+          message: `도메인명 매칭: ${dom.std_domain_nm} (${dom.info_type_nm || '-'})`,
         }))
       } else {
         status = bumpStatus(status, addItem(items, {
@@ -427,29 +427,29 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
       }
     }
 
-    if (infotype) {
+    if (info_type_nm) {
       const byInfotype = domains.filter(
-        (d) => (d.use_yn ?? 'Y') === 'Y' && (d.infotype || '').trim() === infotype,
+        (d) => (d.use_yn ?? 'Y') === 'Y' && (d.info_type_nm || '').trim() === info_type_nm,
       )
       if (byInfotype.length === 0) {
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'error',
-          message: `인포타입 "${infotype}" 매칭 없음`,
+          message: `인포타입 "${info_type_nm}" 매칭 없음`,
         }))
       } else if (byInfotype.length === 1) {
         const dom = byInfotype[0]
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'ok',
-          message: `인포타입 매칭: ${dom.infotype} (${dom.domain_nm})`,
+          message: `인포타입 매칭: ${dom.info_type_nm} (${dom.std_domain_nm})`,
         }))
 
-        if (dataType && dom.data_type && dataType.toUpperCase() !== dom.data_type.toUpperCase()) {
+        if (dataType && dom.data_type_nm && dataType.toUpperCase() !== dom.data_type_nm.toUpperCase()) {
           status = bumpStatus(status, addItem(items, {
             category: '표준도메인',
             level: 'warning',
-            message: `데이터타입 불일치 (정의서: ${dataType}, 표준: ${dom.data_type})`,
+            message: `데이터타입 불일치 (정의서: ${dataType}, 표준: ${dom.data_type_nm})`,
           }))
         }
       }
@@ -457,48 +457,48 @@ export function reviewAttributeStandards(row, { words = [], terms = [], domains 
 
     const lastWord = matchedWords[matchedWords.length - 1]
     if (lastWord?.taxon_yn === 'Y') {
-      const exactClassifier = findDomainsByClassifier(lastWord.word_nm, domains)
-      if (exactClassifier.length > 0 && !domainName && !infotype) {
+      const exactClassifier = findDomainsByClassifier(lastWord.std_word_nm, domains)
+      if (exactClassifier.length > 0 && !domainName && !info_type_nm) {
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'info',
-          message: `분류어 "${lastWord.word_nm}" 도메인: ${exactClassifier.map((d) => d.domain_nm).join(', ')}`,
+          message: `분류어 "${lastWord.std_word_nm}" 도메인: ${exactClassifier.map((d) => d.std_domain_nm).join(', ')}`,
         }))
       }
 
       const similar = findSimilarDomains(
-        lastWord.word_nm,
+        lastWord.std_word_nm,
         domains,
-        new Set(exactClassifier.map((d) => d.domain_id)),
+        new Set(exactClassifier.map((d) => d.std_domain_id)),
       )
-      if (similar.length > 0 && !domainName && !infotype) {
+      if (similar.length > 0 && !domainName && !info_type_nm) {
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'info',
-          message: `유사 도메인: ${similar.slice(0, 3).map((d) => d.domain_nm).join(', ')}`,
+          message: `유사 도메인: ${similar.slice(0, 3).map((d) => d.std_domain_nm).join(', ')}`,
         }))
       }
 
       const suggestion = suggestDomainFromClassifier(lastWord, domains)
-      if (suggestion.autoSelected && suggestion.domain_id && !domainName && !infotype) {
-        const suggested = domains.find((d) => String(d.domain_id) === String(suggestion.domain_id))
+      if (suggestion.autoSelected && suggestion.std_domain_id && !domainName && !info_type_nm) {
+        const suggested = domains.find((d) => String(d.std_domain_id) === String(suggestion.std_domain_id))
         if (suggested) {
           status = bumpStatus(status, addItem(items, {
             category: '표준도메인',
             level: 'info',
-            message: `권장 도메인: ${suggested.domain_nm} (${suggested.infotype || '-'})`,
+            message: `권장 도메인: ${suggested.std_domain_nm} (${suggested.info_type_nm || '-'})`,
           }))
         }
       }
     }
 
-    if (exactTerm?.domain_id) {
-      const termDomain = domains.find((d) => d.domain_id === exactTerm.domain_id)
-      if (termDomain && !infotype && !domainName) {
+    if (exactTerm?.std_domain_id) {
+      const termDomain = domains.find((d) => d.std_domain_id === exactTerm.std_domain_id)
+      if (termDomain && !info_type_nm && !domainName) {
         status = bumpStatus(status, addItem(items, {
           category: '표준도메인',
           level: 'info',
-          message: `표준용어 연결 도메인: ${termDomain.domain_nm}`,
+          message: `표준용어 연결 도메인: ${termDomain.std_domain_nm}`,
         }))
       }
     }
@@ -517,11 +517,11 @@ export function reviewStandardDefinitionRow(row, ctx) {
       : 'ok'
 
   return {
-    def_id: row.def_id,
-    entity_name: row.entity_name,
-    table_name: row.table_name,
-    attribute_name: row.attribute_name,
-    column_name: row.column_name,
+    table_def_id: row.table_def_id,
+    entity_nm: row.entity_nm,
+    table_nm: row.table_nm,
+    attribute_nm: row.attribute_nm,
+    column_nm: row.column_nm,
     status,
     entityReview,
     attributeReview,
@@ -534,7 +534,7 @@ export function reviewSelectedDefinitions(rows, ctx) {
   const groupMap = new Map()
 
   for (const row of rows) {
-    const tableKey = `${row.schema_name}|${row.db_type}|${row.table_name}`
+    const tableKey = `${row.schema_nm}|${row.db_type_nm}|${row.table_nm}`
     if (!tableEntityCache.has(tableKey)) {
       tableEntityCache.set(tableKey, reviewEntityTableName(row, ctx))
     }
@@ -548,9 +548,9 @@ export function reviewSelectedDefinitions(rows, ctx) {
         : 'ok'
 
     const item = {
-      def_id: row.def_id,
-      attribute_name: row.attribute_name,
-      column_name: row.column_name,
+      table_def_id: row.table_def_id,
+      attribute_nm: row.attribute_nm,
+      column_nm: row.column_nm,
       status,
       attributeReview,
     }
@@ -558,8 +558,8 @@ export function reviewSelectedDefinitions(rows, ctx) {
     if (!groupMap.has(tableKey)) {
       const group = {
         tableKey,
-        entity_name: row.entity_name,
-        table_name: row.table_name,
+        entity_nm: row.entity_nm,
+        table_nm: row.table_nm,
         entityReview,
         rows: [item],
       }
@@ -618,8 +618,8 @@ export function classifyStandardReviewErrors(groups) {
     for (const item of entityItems) {
       if (item.level !== 'error') continue
       bump(item.category || '기타', item.message, {
-        table: group.table_name,
-        entity: group.entity_name,
+        table: group.table_nm,
+        entity: group.entity_nm,
         message: item.message,
       })
     }
@@ -629,9 +629,9 @@ export function classifyStandardReviewErrors(groups) {
       for (const item of attrItems) {
         if (item.level !== 'error') continue
         bump(item.category || '기타', item.message, {
-          table: group.table_name,
-          column: row.column_name,
-          attribute: row.attribute_name,
+          table: group.table_nm,
+          column: row.column_nm,
+          attribute: row.attribute_nm,
           message: item.message,
         })
       }

@@ -5,12 +5,12 @@ const CONNECTION_TIMEOUT_MS = 15_000
 
 export function createPgClient(server) {
   return new pg.Client({
-    host: server.host?.trim(),
-    port: Number(server.port) || 5432,
-    database: server.database_name?.trim(),
-    user: server.username?.trim(),
-    password: server.password,
-    ssl: resolveSslForHost(server.host?.trim(), server.ssl_enabled),
+    host: server.host_nm?.trim(),
+    port: Number(server.port_no) || 5432,
+    database: server.database_nm?.trim(),
+    user: server.user_nm?.trim(),
+    password: server.password_val,
+    ssl: resolveSslForHost(server.host_nm?.trim(), server.ssl_yn),
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
   })
 }

@@ -20,16 +20,18 @@ const FOOTER_COLUMNS = [
   {
     title: '데이터베이스',
     links: [
+      { label: '데이터 모델 관리', to: '/database/data-models' },
       { label: '서버등록', to: '/servers/register' },
       { label: '데이터베이스검토', to: '/database/review' },
       { label: '테이블정의서검토', to: '/database/table-definition-review' },
     ],
   },
   {
-    title: 'iMeta관리',
+    title: 'iMETA관리',
     adminOnly: true,
     links: [
       { label: '사용자 관리', to: '/users' },
+      { label: '전사 표준 관리', to: '/data-objects' },
     ],
   },
 ]
