@@ -107,6 +107,9 @@ async function createUiService(ownerId, apiUrl) {
     serviceDetails: {
       buildCommand: 'npm install && npm run build',
       publishPath: 'dist',
+      routes: [
+        { type: 'rewrite', source: '/*', destination: '/index.html' },
+      ],
     },
     envVars: [
       { key: 'VITE_API_URL', value: apiUrl },
@@ -117,6 +120,35 @@ async function createUiService(ownerId, apiUrl) {
     body: JSON.stringify(payload),
   })
   return result.service
+}
+
+/** SPA 클라이언트 라우팅용 rewrite 규칙 적용 */
+async function ensureSpaRewrite(serviceId) {
+  let existing = []
+  try {
+    existing = await api(`/services/${serviceId}/routes`)
+    if (!Array.isArray(existing)) existing = existing?.routes ?? []
+  } catch {
+    existing = []
+  }
+
+  const hasSpa = existing.some(
+    (r) => r.type === 'rewrite' && r.source === '/*' && r.destination === '/index.html',
+  )
+  if (hasSpa) {
+    console.log('  SPA rewrite /* → /index.html 이미 설정됨')
+    return
+  }
+
+  await api(`/services/${serviceId}/routes`, {
+    method: 'POST',
+    body: JSON.stringify({
+      type: 'rewrite',
+      source: '/*',
+      destination: '/index.html',
+    }),
+  })
+  console.log('  SPA rewrite /* → /index.html 추가')
 }
 
 async function main() {
@@ -149,6 +181,13 @@ async function main() {
 
   console.log('\nUI 환경 변수 설정...')
   await setEnvVar(uiService.id, 'VITE_API_URL', apiUrl)
+
+  console.log('\nSPA rewrite 규칙 설정...')
+  try {
+    await ensureSpaRewrite(uiService.id)
+  } catch (err) {
+    console.warn(`  rewrite API 설정 실패 (대시보드 Redirects/Rewrites에서 /* → /index.html Rewrite 추가): ${err.message}`)
+  }
 
   console.log('\n재배포 트리거...')
   await triggerDeploy(apiService.id, 'api')

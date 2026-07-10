@@ -26,6 +26,11 @@ services:
     rootDir: ui
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    # SPA: /login 등 직접 URL·새로고침 시 index.html로 rewrite
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         fromService:
