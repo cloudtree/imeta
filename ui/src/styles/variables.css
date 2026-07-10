@@ -1,50 +1,52 @@
 :root {
-  /* Colors - Primary */
-  --color-primary: #1a56db;
-  --color-primary-hover: #1649c5;
-  --color-primary-light: #e8f0fe;
+  /* Apple-inspired palette */
+  --color-primary: #0071e3;
+  --color-primary-hover: #0077ed;
+  --color-primary-light: #e8f2fc;
+  --color-primary-soft: #2997ff;
+  --color-brand-linear: #06c;
 
-  /* Colors - Neutral */
+  --color-info: #0071e3;
+  --color-success: #34c759;
+  --color-success-strong: #248a3d;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff3b30;
+  --color-danger-hover: #d70015;
+  --color-danger-light: #ffe5e5;
+
   --color-white: #ffffff;
-  --color-bg: #f3f4f6;
-  --color-bg-card: #ffffff;
-  --color-border: #e5e7eb;
-  --color-border-focus: #1a56db;
+  --color-bg: #f5f5f7;
+  --color-bg-card: rgba(255, 255, 255, 0.72);
+  --color-border: #d2d2d7;
+  --color-border-focus: #0071e3;
 
-  /* Colors - Text */
-  --color-text-primary: #111827;
-  --color-text-secondary: #6b7280;
-  --color-text-placeholder: #9ca3af;
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-text-placeholder: #86868b;
   --color-text-inverse: #ffffff;
+  --color-text-muted: #86868b;
 
-  /* Colors - Sidebar */
-  --color-sidebar-bg: #1e2a3a;
-  --color-sidebar-hover: #2d3f55;
-  --color-sidebar-active: #1a56db;
-  --color-sidebar-text: #c9d1db;
-  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-bg: rgba(255, 255, 255, 0.72);
+  --color-sidebar-hover: rgba(0, 0, 0, 0.04);
+  --color-sidebar-active: rgba(0, 113, 227, 0.08);
+  --color-sidebar-text: #6e6e73;
+  --color-sidebar-text-active: #1d1d1f;
 
-  /* Colors - Status */
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
-  --color-danger-light: #fee2e2;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-
-  /* Typography */
-  --font-family: 'Pretendard', 'Noto Sans KR', Inter, system-ui, sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo',
+    'Noto Sans KR', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo',
+    'Noto Sans KR', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.125rem;
-  --font-size-xl: 1.25rem;
-  --font-size-2xl: 1.5rem;
+  --font-size-base: 1.0625rem;
+  --font-size-lg: 1.1875rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Spacing */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -55,20 +57,21 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
 
-  /* Layout */
-  --sidebar-width: 220px;
-  --header-height: 56px;
+  --sidebar-width: 240px;
+  --header-height: 3.25rem;
 
-  /* Border */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.25rem;
 
-  /* Shadow */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.1);
+  --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 22px 70px rgba(0, 0, 0, 0.18);
 
-  /* Transition */
-  --transition: 0.15s ease;
+  --transition: 0.22s cubic-bezier(0.25, 0.1, 0.25, 1);
 }

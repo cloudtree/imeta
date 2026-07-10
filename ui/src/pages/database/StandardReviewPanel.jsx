@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { summarizeStandardReviewGroups } from './standardReviewUtils'
 
 const STATUS_LABEL = {
@@ -7,125 +7,168 @@ const STATUS_LABEL = {
   error: '부적합',
 }
 
-const STATUS_CLASS = {
-  ok: 'badge-green',
-  warning: 'badge-yellow',
-  error: 'badge-red',
+const LEVEL_LABEL = {
+  ok: '적합',
+  warning: '주의',
+  error: '부적합',
+  info: '참고',
 }
 
-const LEVEL_ICON = {
-  ok: '✓',
-  warning: '△',
-  error: '✕',
-  info: '·',
+function groupItemsByCategory(items = []) {
+  const map = new Map()
+  for (const item of items) {
+    const key = item.category || '기타'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  }
+  return [...map.entries()]
 }
 
-const LEVEL_CLASS = {
-  ok: 'standard-review-item--ok',
-  warning: 'standard-review-item--warning',
-  error: 'standard-review-item--error',
-  info: 'standard-review-item--info',
+function StatusPill({ status }) {
+  return (
+    <span className={`sr-cloud-pill sr-cloud-pill--${status}`}>
+      <span className="sr-cloud-pill__dot" aria-hidden />
+      {STATUS_LABEL[status] || status}
+    </span>
+  )
 }
 
-function ReviewItems({ items = [] }) {
+function FindingCloud({ items = [] }) {
   if (!items.length) return null
 
+  const categories = groupItemsByCategory(items)
+
   return (
-    <ul className="standard-review-card__items">
-      {items.map((item, index) => (
-        <li
-          key={index}
-          className={`standard-review-item ${LEVEL_CLASS[item.level]}`}
-        >
-          <span className="standard-review-item__icon" aria-hidden>
-            {LEVEL_ICON[item.level]}
-          </span>
-          <div className="standard-review-item__body">
-            {item.category && (
-              <span className="standard-review-item__category">{item.category}</span>
-            )}
-            <p className="standard-review-item__message">{item.message}</p>
-            {item.detail && (
-              <p className="standard-review-item__detail">{item.detail}</p>
-            )}
+    <div className="sr-cloud-findings">
+      {categories.map(([category, categoryItems]) => (
+        <div key={category} className="sr-cloud-cluster">
+          <div className="sr-cloud-cluster__label">{category}</div>
+          <div className="sr-cloud-cluster__chips">
+            {categoryItems.map((item, index) => (
+              <article
+                key={`${category}-${index}`}
+                className={`sr-cloud-chip sr-cloud-chip--${item.level}`}
+              >
+                <header className="sr-cloud-chip__head">
+                  <span className={`sr-cloud-chip__level sr-cloud-chip__level--${item.level}`}>
+                    {LEVEL_LABEL[item.level]}
+                  </span>
+                </header>
+                <p className="sr-cloud-chip__message">{item.message}</p>
+                {item.detail && (
+                  <p className="sr-cloud-chip__detail">{item.detail}</p>
+                )}
+              </article>
+            ))}
           </div>
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
+  )
+}
+
+function EntityBlock({ group }) {
+  return (
+    <section className="sr-cloud-block">
+      <div className="sr-cloud-block__header">
+        <div className="sr-cloud-block__identity">
+          <span className="sr-cloud-block__kind">엔티티 · 테이블</span>
+          <h3 className="sr-cloud-block__title">
+            {group.entity_name || '(엔티티명 없음)'}
+            <span className="sr-cloud-block__sep">/</span>
+            <code>{group.table_name || '-'}</code>
+          </h3>
+        </div>
+        <StatusPill status={group.entityReview.status} />
+      </div>
+      <FindingCloud items={group.entityReview.items} />
+    </section>
+  )
+}
+
+function AttributeBlock({ row }) {
+  return (
+    <section className="sr-cloud-block sr-cloud-block--attr">
+      <div className="sr-cloud-block__header">
+        <div className="sr-cloud-block__identity">
+          <span className="sr-cloud-block__kind">속성 · 컬럼</span>
+          <h3 className="sr-cloud-block__title">
+            {row.attribute_name || '(속성명 없음)'}
+            <span className="sr-cloud-block__sep">/</span>
+            <code>{row.column_name || '-'}</code>
+          </h3>
+        </div>
+        <StatusPill status={row.status} />
+      </div>
+      <FindingCloud items={row.attributeReview.items} />
+    </section>
   )
 }
 
 export default function StandardReviewPanel({ groups = [], onClose }) {
   const summary = useMemo(() => summarizeStandardReviewGroups(groups), [groups])
+  const [activeFilter, setActiveFilter] = useState('all')
+
+  const filteredGroups = useMemo(() => {
+    if (activeFilter === 'all') return groups
+    return groups
+      .map((group) => ({
+        ...group,
+        rows: group.rows.filter((row) => row.status === activeFilter),
+        includeEntity: group.entityReview.status === activeFilter,
+      }))
+      .filter((group) => group.includeEntity || group.rows.length > 0)
+  }, [groups, activeFilter])
+
+  const filters = [
+    { key: 'all', label: '전체', count: summary.total },
+    { key: 'ok', label: '적합', count: summary.ok },
+    { key: 'warning', label: '주의', count: summary.warning },
+    { key: 'error', label: '부적합', count: summary.error },
+  ]
 
   return (
-    <div className="standard-review-panel">
-      <div className="standard-review-panel__header">
-        <h2 className="standard-review-panel__title">표준검토</h2>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
-          닫기
+    <div className="sr-cloud">
+      <header className="sr-cloud__header">
+        <div>
+          <p className="sr-cloud__eyebrow">Standard Review</p>
+          <h2 className="sr-cloud__title">표준검토</h2>
+        </div>
+        <button type="button" className="sr-cloud__close" onClick={onClose} aria-label="닫기">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
+      </header>
+
+      <div className="sr-cloud__summary">
+        {filters.map((filter) => (
+          <button
+            key={filter.key}
+            type="button"
+            className={`sr-cloud__stat${activeFilter === filter.key ? ' sr-cloud__stat--active' : ''}${filter.key !== 'all' ? ` sr-cloud__stat--${filter.key}` : ''}`}
+            onClick={() => setActiveFilter(filter.key)}
+          >
+            <span className="sr-cloud__stat-label">{filter.label}</span>
+            <strong className="sr-cloud__stat-value">{filter.count}</strong>
+          </button>
+        ))}
       </div>
 
-      <div className="standard-review-summary standard-review-summary--compact">
-        <div className="standard-review-summary__item">
-          <span className="standard-review-summary__label">검토</span>
-          <strong>{summary.total}건</strong>
-        </div>
-        <div className="standard-review-summary__item">
-          <span className="standard-review-summary__label">적합</span>
-          <strong className="standard-review-summary__ok">{summary.ok}</strong>
-        </div>
-        <div className="standard-review-summary__item">
-          <span className="standard-review-summary__label">주의</span>
-          <strong className="standard-review-summary__warning">{summary.warning}</strong>
-        </div>
-        <div className="standard-review-summary__item">
-          <span className="standard-review-summary__label">부적합</span>
-          <strong className="standard-review-summary__error">{summary.error}</strong>
-        </div>
-      </div>
-
-      {groups.length === 0 ? (
-        <div className="standard-review-empty">검토 결과가 없습니다.</div>
+      {filteredGroups.length === 0 ? (
+        <div className="sr-cloud__empty">표시할 검토 결과가 없습니다.</div>
       ) : (
-        <div className="standard-review-list">
-          {groups.map((group) => (
-            <section key={group.tableKey} className="standard-review-card">
-              <div className="standard-review-card__header">
-                <div>
-                  <div className="standard-review-card__title">
-                    {group.entity_name} · {group.table_name}
-                  </div>
-                  <div className="standard-review-card__meta">엔티티명 기준 테이블명 검토</div>
-                </div>
-                <span className={`badge ${STATUS_CLASS[group.entityReview.status]}`}>
-                  {STATUS_LABEL[group.entityReview.status]}
-                </span>
-              </div>
-              <div className="standard-review-card__section">
-                <ReviewItems items={group.entityReview.items} />
-              </div>
-
+        <div className="sr-cloud__stream">
+          {filteredGroups.map((group) => (
+            <article key={group.tableKey} className="sr-cloud-group">
+              {(activeFilter === 'all' || group.includeEntity) && (
+                <EntityBlock group={group} />
+              )}
               {group.rows.map((row) => (
-                <div key={row.def_id} className="standard-review-card__section standard-review-card__section--attribute">
-                  <div className="standard-review-card__attribute-header">
-                    <div>
-                      <div className="standard-review-card__attribute-title">
-                        {row.attribute_name}
-                      </div>
-                      <div className="standard-review-card__meta">
-                        컬럼명: {row.column_name || '-'} · 속성명 기준 단어/용어/도메인 검토
-                      </div>
-                    </div>
-                    <span className={`badge ${STATUS_CLASS[row.status]}`}>
-                      {STATUS_LABEL[row.status]}
-                    </span>
-                  </div>
-                  <ReviewItems items={row.attributeReview.items} />
-                </div>
+                <AttributeBlock key={row.def_id} row={row} />
               ))}
-            </section>
+            </article>
           ))}
         </div>
       )}

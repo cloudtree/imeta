@@ -26,12 +26,58 @@ router.get('/', async (req, res) => {
     const total = Number(countResult.rows[0].count)
 
     params.push(Number(limit), offset)
-    // 연결된 단어/용어/도메인 건수 포함
+    // 연결된 단어/용어/도메인 건수 + 정의서 테이블/컬럼 건수(도메인·용어 매칭)
     const dataResult = await pool.query(
       `SELECT s.*,
               (SELECT COUNT(*) FROM words   w WHERE w.subject_id = s.subject_id) AS word_count,
               (SELECT COUNT(*) FROM terms   t WHERE t.subject_id = s.subject_id) AS term_count,
-              (SELECT COUNT(*) FROM domains d WHERE d.subject_id = s.subject_id) AS domain_count
+              (SELECT COUNT(*) FROM domains d WHERE d.subject_id = s.subject_id) AS domain_count,
+              (
+                SELECT COUNT(DISTINCT td.schema_name || '|' || td.db_type || '|' || td.table_name)::int
+                FROM table_definitions td
+                WHERE td.use_yn = 'Y'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM domains d
+                      WHERE d.subject_id = s.subject_id
+                        AND d.domain_nm IS NOT NULL
+                        AND d.domain_nm <> ''
+                        AND d.domain_nm = td.domain_name
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM terms t
+                      WHERE t.subject_id = s.subject_id
+                        AND (
+                          (t.logical_term IS NOT NULL AND t.logical_term <> '' AND t.logical_term = td.attribute_name)
+                          OR (t.physical_term IS NOT NULL AND t.physical_term <> ''
+                              AND UPPER(t.physical_term) = UPPER(td.column_name))
+                        )
+                    )
+                  )
+              ) AS table_count,
+              (
+                SELECT COUNT(*)::int
+                FROM table_definitions td
+                WHERE td.use_yn = 'Y'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM domains d
+                      WHERE d.subject_id = s.subject_id
+                        AND d.domain_nm IS NOT NULL
+                        AND d.domain_nm <> ''
+                        AND d.domain_nm = td.domain_name
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM terms t
+                      WHERE t.subject_id = s.subject_id
+                        AND (
+                          (t.logical_term IS NOT NULL AND t.logical_term <> '' AND t.logical_term = td.attribute_name)
+                          OR (t.physical_term IS NOT NULL AND t.physical_term <> ''
+                              AND UPPER(t.physical_term) = UPPER(td.column_name))
+                        )
+                    )
+                  )
+              ) AS column_count
        FROM subject_area s
        ${where}
        ORDER BY s.subject_id ASC
@@ -52,7 +98,53 @@ router.get('/:id', async (req, res) => {
       `SELECT s.*,
               (SELECT COUNT(*) FROM words   w WHERE w.subject_id = s.subject_id) AS word_count,
               (SELECT COUNT(*) FROM terms   t WHERE t.subject_id = s.subject_id) AS term_count,
-              (SELECT COUNT(*) FROM domains d WHERE d.subject_id = s.subject_id) AS domain_count
+              (SELECT COUNT(*) FROM domains d WHERE d.subject_id = s.subject_id) AS domain_count,
+              (
+                SELECT COUNT(DISTINCT td.schema_name || '|' || td.db_type || '|' || td.table_name)::int
+                FROM table_definitions td
+                WHERE td.use_yn = 'Y'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM domains d
+                      WHERE d.subject_id = s.subject_id
+                        AND d.domain_nm IS NOT NULL
+                        AND d.domain_nm <> ''
+                        AND d.domain_nm = td.domain_name
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM terms t
+                      WHERE t.subject_id = s.subject_id
+                        AND (
+                          (t.logical_term IS NOT NULL AND t.logical_term <> '' AND t.logical_term = td.attribute_name)
+                          OR (t.physical_term IS NOT NULL AND t.physical_term <> ''
+                              AND UPPER(t.physical_term) = UPPER(td.column_name))
+                        )
+                    )
+                  )
+              ) AS table_count,
+              (
+                SELECT COUNT(*)::int
+                FROM table_definitions td
+                WHERE td.use_yn = 'Y'
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM domains d
+                      WHERE d.subject_id = s.subject_id
+                        AND d.domain_nm IS NOT NULL
+                        AND d.domain_nm <> ''
+                        AND d.domain_nm = td.domain_name
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM terms t
+                      WHERE t.subject_id = s.subject_id
+                        AND (
+                          (t.logical_term IS NOT NULL AND t.logical_term <> '' AND t.logical_term = td.attribute_name)
+                          OR (t.physical_term IS NOT NULL AND t.physical_term <> ''
+                              AND UPPER(t.physical_term) = UPPER(td.column_name))
+                        )
+                    )
+                  )
+              ) AS column_count
        FROM subject_area s WHERE s.subject_id = $1`,
       [req.params.id]
     )

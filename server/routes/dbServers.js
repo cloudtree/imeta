@@ -2,7 +2,11 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { testPgConnection } from '../dbConnectionTest.js'
 import { withDbServerClient } from '../dbClient.js'
-import { fetchUserTables, fetchTableDefinition } from '../dbSchemaIntrospection.js'
+import {
+  fetchUserTables,
+  fetchTableDefinition,
+  fetchSchemaDefinitionRows,
+} from '../dbSchemaIntrospection.js'
 
 const router = Router()
 
@@ -144,6 +148,31 @@ router.get('/:id/schema/tables/:schema/:table', async (req, res) => {
         database_name: server.database_name,
       },
       ...definition,
+    })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+})
+
+// GET /api/db-servers/:id/schema/definitions
+router.get('/:id/schema/definitions', async (req, res) => {
+  try {
+    const server = await getServerCredentials(req.params.id)
+    if (!server) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
+
+    const items = await withDbServerClient(server, (client) =>
+      fetchSchemaDefinitionRows(client, { dbType: 'PostgreSQL' }),
+    )
+
+    res.json({
+      server: {
+        server_id: server.server_id,
+        server_name: server.server_name,
+        database_name: server.database_name,
+        db_type: 'PostgreSQL',
+      },
+      items,
+      total: items.length,
     })
   } catch (err) {
     res.status(500).json({ message: err.message })

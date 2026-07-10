@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useWords } from '../../hooks/useWords'
 import { wordsApi } from '../../api/words'
-import DataTable from '../../components/common/DataTable'
+import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import SplitView from '../../components/common/SplitView'
+import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
+import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import SubjectAreaFilter from '../../components/common/SubjectAreaFilter'
-import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import WordForm from './WordForm'
@@ -23,33 +25,18 @@ const EXCEL_COLUMNS = [
 
 const PAGE_SIZE = 50
 
-const COLUMNS = [
-  { key: 'subject_name',   label: '주제영역',   render: (v) => v || '-' },
-  { key: 'word_nm',        label: '단어명',     sortable: true },
-  { key: 'all_word_nm',    label: '영문명',     sortable: true },
-  { key: 'abb_word_nm',    label: '영문약어',   sortable: true },
-  { key: 'kor_synonym_nm', label: '한글동의어', sortable: true },
-  {
-    key: 'taxon_yn',
-    label: '분류어',
-    render: (v) => (
-      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
-    ),
-  },
-  {
-    key: 'use_yn',
-    label: '사용',
-    render: (v) => (
-      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
-    ),
-  },
-]
-
 export default function WordsPage() {
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('search') || ''
+    } catch {
+      return ''
+    }
+  })
   const [subjectFilter, setSubjectFilter] = useState('')
-  const [page, setPage]     = useState(1)
+  const [page, setPage] = useState(1)
   const [allWords, setAllWords] = useState([])
+  const { navItems } = useSubjectAreaNav()
 
   useEffect(() => {
     wordsApi.getAll({ limit: 10000 })
@@ -72,58 +59,56 @@ export default function WordsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useWords(listParams)
 
-  const [modalMode,    setModalMode]    = useState(null)
-  const [formValue,    setFormValue]    = useState(WordForm.EMPTY)
-  const [selectedRow,  setSelectedRow]  = useState(null)
+  const [panelMode, setPanelMode] = useState(null) // null | 'create' | 'edit'
+  const [formValue, setFormValue] = useState(WordForm.EMPTY)
+  const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
-  const [showExcel,    setShowExcel]    = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [showExcel, setShowExcel] = useState(false)
   const [showDeleteAll, setShowDeleteAll] = useState(false)
   const [deleteAllLoading, setDeleteAllLoading] = useState(false)
-  const [selected,     setSelected]     = useState(new Set())
+  const [selected, setSelected] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const openCreate = () => {
+    setSelectedRow(null)
     setFormValue(WordForm.EMPTY)
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
+    setFormError(null)
   }
 
   const validate = (v) => {
-    if (!v.word_nm?.trim())        return '단어명을 입력하세요.'
-    if (!v.abb_word_nm?.trim())    return '영문약어를 입력하세요.'
-    if (!v.all_word_nm?.trim())    return '영문명을 입력하세요.'
-    if (!v.subject_id)             return '주제영역을 선택하세요.'
+    if (!v.word_nm?.trim()) return '단어명을 입력하세요.'
+    if (!v.abb_word_nm?.trim()) return '영문약어를 입력하세요.'
+    if (!v.all_word_nm?.trim()) return '영문명을 입력하세요.'
+    if (!v.subject_id) return '주제영역을 선택하세요.'
 
-    // 단어명 제약
     const wordNm = v.word_nm.trim()
-    if (wordNm.length > 15)
-      return '단어명은 최대 15자까지 입력 가능합니다.'
-    if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(wordNm))
+    if (wordNm.length > 15) return '단어명은 최대 15자까지 입력 가능합니다.'
+    if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(wordNm)) {
       return '단어명에는 공백 및 특수문자를 사용할 수 없습니다. (/, -, & 만 허용)'
+    }
 
-    // 영문약어 제약
     const abbr = v.abb_word_nm.trim()
-    if (abbr.length > 10)
-      return '영문약어는 최대 10자까지 입력 가능합니다.'
-    if (/\s/.test(abbr))
-      return '영문약어에는 공백을 사용할 수 없습니다.'
-    if (/[^A-Za-z0-9]/.test(abbr))
+    if (abbr.length > 10) return '영문약어는 최대 10자까지 입력 가능합니다.'
+    if (/\s/.test(abbr)) return '영문약어에는 공백을 사용할 수 없습니다.'
+    if (/[^A-Za-z0-9]/.test(abbr)) {
       return '영문약어는 영문과 숫자만 사용할 수 있습니다. (_ 등 특수문자 불가)'
-
+    }
     return null
   }
 
@@ -133,12 +118,13 @@ export default function WordsPage() {
     setSaving(true)
     setFormError(null)
     try {
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(formValue)
+        closePanel()
       } else {
         await update(selectedRow.word_id, formValue)
+        setSelectedRow({ ...selectedRow, ...formValue })
       }
-      closeModal()
       reloadAllWords()
     } catch (e) {
       setFormError(e.message)
@@ -152,6 +138,7 @@ export default function WordsPage() {
     try {
       await remove(deleteTarget.word_id)
       setDeleteTarget(null)
+      closePanel()
       reloadAllWords()
     } catch (e) {
       alert(e.message)
@@ -167,6 +154,7 @@ export default function WordsPage() {
     try {
       await Promise.all([...selected].map((id) => wordsApi.delete(id)))
       setSelected(new Set())
+      if (selectedRow && selected.has(selectedRow.word_id)) closePanel()
       await refetch()
       reloadAllWords()
     } catch (e) {
@@ -185,6 +173,7 @@ export default function WordsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
+      closePanel()
       await refetch()
       reloadAllWords()
     } catch (e) {
@@ -194,21 +183,33 @@ export default function WordsPage() {
     }
   }
 
+  const getRow = (row) => ({
+    id: row.word_id,
+    primary: row.word_nm,
+    secondary: [row.abb_word_nm, row.all_word_nm].filter(Boolean).join(' · '),
+    meta: [row.subject_name, row.kor_synonym_nm, row.taxon_yn === 'Y' ? '분류어' : null]
+      .filter(Boolean).join(' · '),
+    status: row.use_yn === 'Y' ? '사용' : '미사용',
+    statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
+  })
+
+  const detailOpen = panelMode != null
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="split-page">
+      <div className="split-page__header">
         <div>
           <h1 className="page-title">표준 단어 관리</h1>
           <p className="page-subtitle">데이터 표준화를 위한 단어를 등록하고 관리합니다.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="split-page__actions">
           {selected.size > 0 && (
             <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
               {bulkDeleting ? <span className="spinner" /> : null}
               선택 삭제 ({selected.size}건)
             </button>
           )}
-          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>📂 엑셀 대량 등록</button>
+          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>엑셀 대량 등록</button>
           <button
             className="btn btn-danger"
             onClick={() => setShowDeleteAll(true)}
@@ -221,66 +222,86 @@ export default function WordsPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">단어 목록 ({total}건)</span>
-          <div className="toolbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <SubjectAreaFilter
-                value={subjectFilter}
-                onChange={(v) => { setSubjectFilter(v); setPage(1) }}
-              />
-              <SearchBar
-                value={search}
-                onChange={(v) => { setSearch(v); setPage(1) }}
-                placeholder="단어명, 영문약어, 영문명 검색"
-              />
-            </div>
-          </div>
-        </div>
-
-        {error && <div className="alert alert-error" style={{ margin: '16px 24px' }}>{error}</div>}
-
-        {loading ? (
-          <div className="loading-overlay"><span className="spinner" /></div>
-        ) : (
-          <DataTable
-            columns={COLUMNS} rows={data} onRowClick={openEdit}
-            emptyText="등록된 단어가 없습니다."
-            selectable rowKey="word_id"
-            selected={selected} onSelectionChange={setSelected}
-            showRowNumber rowNumberOffset={(page - 1) * PAGE_SIZE}
+      <SplitView
+        detailOpen={detailOpen}
+        left={(
+          <SplitNav
+            title="주제영역"
+            allLabel="전체 단어"
+            allCount={total}
+            items={navItems}
+            selectedId={subjectFilter}
+            onSelect={(id) => { setSubjectFilter(id); setPage(1) }}
           />
         )}
-
-        <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-      </div>
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '표준 단어 등록' : '표준 단어 수정'}
-          onClose={closeModal}
-          footer={
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >삭제</button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          }
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <WordForm value={formValue} onChange={setFormValue} />
-        </Modal>
-      )}
+        center={(
+          <div className="split-list-chrome">
+            <div className="split-list-chrome__toolbar">
+              <div className="split-list-chrome__title-row">
+                <span className="split-list-chrome__title">
+                  단어 목록
+                  <span className="split-list-chrome__count"> · {total}건</span>
+                </span>
+              </div>
+              <div className="split-list-chrome__filters">
+                <SearchBar
+                  value={search}
+                  onChange={(v) => { setSearch(v); setPage(1) }}
+                  placeholder="단어명, 영문약어, 영문명 검색"
+                />
+              </div>
+            </div>
+            {error && <div className="alert alert-error" style={{ margin: '8px 12px' }}>{error}</div>}
+            <div className="split-list-chrome__body">
+              <MetaList
+                rows={data}
+                getRow={getRow}
+                selectedId={selectedRow?.word_id}
+                onSelect={openEdit}
+                selectable
+                selectedIds={selected}
+                onSelectionChange={setSelected}
+                loading={loading}
+                emptyText="등록된 단어가 없습니다."
+              />
+            </div>
+            <div className="split-list-chrome__footer">
+              <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+            </div>
+          </div>
+        )}
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="단어를 선택하세요"
+            emptyHint="목록에서 단어를 클릭하면 상세 정보가 여기에 표시됩니다. 새 단어는 우측 상단에서 등록할 수 있습니다."
+            title={panelMode === 'create' ? '표준 단어 등록' : (formValue.word_nm || '표준 단어 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.abb_word_nm || selectedRow?.abb_word_nm) : '새 단어 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
+                </button>
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <WordForm value={formValue} onChange={setFormValue} />
+          </SplitDetail>
+        )}
+      />
 
       {deleteTarget && (
         <ConfirmDialog
@@ -306,24 +327,19 @@ export default function WordsPage() {
           columns={EXCEL_COLUMNS}
           rowDefaults={{ subject_id: 'STD01' }}
           validateRow={(r) => {
-            const nm   = r.word_nm?.trim() ?? ''
+            const nm = r.word_nm?.trim() ?? ''
             const abbr = r.abb_word_nm?.trim() ?? ''
-            if (nm.length > 15)
-              return '단어명은 최대 15자까지 가능합니다.'
-            if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(nm))
+            if (nm.length > 15) return '단어명은 최대 15자까지 가능합니다.'
+            if (/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\/\-&]/.test(nm)) {
               return '단어명에 허용되지 않는 문자(공백·특수문자)가 포함되어 있습니다. (/, -, & 만 허용)'
-            if (abbr.length > 10)
-              return '영문약어는 최대 10자까지 가능합니다.'
-            if (/\s/.test(abbr))
-              return '영문약어에 공백을 사용할 수 없습니다.'
-            if (/[^A-Za-z0-9]/.test(abbr))
-              return '영문약어는 영문과 숫자만 사용할 수 있습니다. (_ 등 특수문자 불가)'
+            }
+            if (abbr.length > 10) return '영문약어는 최대 10자까지 가능합니다.'
+            if (/\s/.test(abbr)) return '영문약어에 공백을 사용할 수 없습니다.'
+            if (/[^A-Za-z0-9]/.test(abbr)) return '영문약어는 영문과 숫자만 사용할 수 있습니다. (_ 등 특수문자 불가)'
             const yn = r.use_yn?.trim().toUpperCase()
-            if (yn && yn !== 'Y' && yn !== 'N')
-              return '사용여부는 Y 또는 N 만 입력 가능합니다.'
+            if (yn && yn !== 'Y' && yn !== 'N') return '사용여부는 Y 또는 N 만 입력 가능합니다.'
             const ty = r.taxon_yn?.trim().toUpperCase()
-            if (ty && ty !== 'Y' && ty !== 'N')
-              return '분류어여부는 Y 또는 N 만 입력 가능합니다.'
+            if (ty && ty !== 'Y' && ty !== 'N') return '분류어여부는 Y 또는 N 만 입력 가능합니다.'
             return null
           }}
           onUpload={(rows) => wordsApi.bulk(rows)}

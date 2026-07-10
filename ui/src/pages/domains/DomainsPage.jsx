@@ -3,15 +3,24 @@ import { useDomains } from '../../hooks/useDomains'
 import { wordsApi } from '../../api/words'
 import { domainsApi } from '../../api/domains'
 import { domainGroupsApi } from '../../api/domainGroups'
-import DataTable from '../../components/common/DataTable'
+import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import SplitView from '../../components/common/SplitView'
+import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
+import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import SubjectAreaFilter from '../../components/common/SubjectAreaFilter'
 import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import DomainForm from './DomainForm'
-import { formatDataLength, toFormDataLength, validateDataLength, normalizeDataLength, normalizeDataLengthInput, mergeLegacyLengthScale } from '../../utils/domainInfotype'
+import {
+  formatDataLength,
+  toFormDataLength,
+  validateDataLength,
+  normalizeDataLengthInput,
+  mergeLegacyLengthScale,
+} from '../../utils/domainInfotype'
 
 const EXCEL_COLUMNS = [
   { key: 'subject_id',    label: '주제영역ID',    required: false, example: 'STD01' },
@@ -29,41 +38,28 @@ const EXCEL_COLUMNS = [
 
 const PAGE_SIZE = 50
 
-const COLUMNS = [
-  { key: 'subject_name',  label: '주제영역',      render: (v) => v || '-' },
-  { key: 'info_type',     label: '도메인 그룹명', sortable: true },
-  { key: 'domain_nm',     label: '도메인명',      sortable: true },
-  { key: 'infotype',      label: '인포타입',      sortable: true },
-  { key: 'data_type',     label: '데이터타입',    render: (v) => <span className="badge badge-gray">{v}</span> },
-  {
-    key:     'data_length',
-    label:   '데이터길이',
-    sortable: true,
-    render:  (v, row) => formatDataLength(v ?? row.data_length, row.data_type),
-  },
-  {
-    key: 'use_yn',
-    label: '사용',
-    render: (v) => <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>,
-  },
-]
-
 export default function DomainsPage() {
-  const [search,       setSearch]       = useState('')
+  const [search, setSearch] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('search') || ''
+    } catch {
+      return ''
+    }
+  })
   const [subjectFilter, setSubjectFilter] = useState('')
-  const [groupFilter,  setGroupFilter]  = useState('')
-  const [page, setPage]                 = useState(1)
-  const [words, setWords]               = useState([])
-  const [allDomains, setAllDomains]     = useState([])
+  const [groupFilter, setGroupFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [words, setWords] = useState([])
+  const [allDomains, setAllDomains] = useState([])
+  const { navItems } = useSubjectAreaNav()
 
-  // ── 도메인 그룹 상태 ──────────────────────────────
-  const [groups,          setGroups]          = useState([])
-  const [showGroupModal,  setShowGroupModal]  = useState(false)
-  const [groupForm,       setGroupForm]       = useState({ group_nm: '', group_desc: '', use_yn: 'Y' })
-  const [editingGroup,    setEditingGroup]    = useState(null)   // null = 신규
-  const [groupError,      setGroupError]      = useState(null)
-  const [groupSaving,     setGroupSaving]     = useState(false)
-  const [deleteGroup,     setDeleteGroup]     = useState(null)
+  const [groups, setGroups] = useState([])
+  const [showGroupModal, setShowGroupModal] = useState(false)
+  const [groupForm, setGroupForm] = useState({ group_nm: '', group_desc: '', use_yn: 'Y' })
+  const [editingGroup, setEditingGroup] = useState(null)
+  const [groupError, setGroupError] = useState(null)
+  const [groupSaving, setGroupSaving] = useState(false)
+  const [deleteGroup, setDeleteGroup] = useState(null)
 
   const loadGroups = useCallback(() => {
     domainGroupsApi.getAll()
@@ -95,50 +91,58 @@ export default function DomainsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useDomains(listParams)
 
-  const [modalMode,    setModalMode]    = useState(null)
-  const [formValue,    setFormValue]    = useState(DomainForm.EMPTY)
-  const [selectedRow,  setSelectedRow]  = useState(null)
+  const [panelMode, setPanelMode] = useState(null)
+  const [formValue, setFormValue] = useState(DomainForm.EMPTY)
+  const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
-  const [showExcel,    setShowExcel]    = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [showExcel, setShowExcel] = useState(false)
   const [showDeleteAll, setShowDeleteAll] = useState(false)
   const [deleteAllLoading, setDeleteAllLoading] = useState(false)
-  const [selected,     setSelected]     = useState(new Set())
+  const [selected, setSelected] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const openCreate = () => {
-    setFormValue(DomainForm.EMPTY)
+    setSelectedRow(null)
+    setFormValue({
+      ...DomainForm.EMPTY,
+      ...(groupFilter ? { info_type: groupFilter } : {}),
+      ...(subjectFilter ? { subject_id: subjectFilter } : {}),
+    })
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row, data_length: toFormDataLength(row) })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
+    setFormError(null)
   }
 
   const validate = (v) => {
     if (!v.info_type?.trim()) return '도메인 그룹명을 선택하세요.'
-    if (!v.domain_nm?.trim())  return '도메인명을 입력하세요.'
-    if (!v.data_type)             return '데이터 타입을 선택하세요.'
-    if (!v.subject_id)            return '주제영역을 선택하세요.'
+    if (!v.domain_nm?.trim()) return '도메인명을 입력하세요.'
+    if (!v.data_type) return '데이터 타입을 선택하세요.'
+    if (!v.subject_id) return '주제영역을 선택하세요.'
 
     const lenErr = validateDataLength(v.data_length, v.data_type, v.data_scale)
     if (lenErr) return lenErr
 
     if (words.length > 0) {
       const exists = words.some(
-        (w) => w.abb_word_nm?.toUpperCase() === v.domain_div_cd?.trim().toUpperCase()
+        (w) => w.abb_word_nm?.toUpperCase() === v.domain_div_cd?.trim().toUpperCase(),
       )
-      if (!exists) return `도메인 영문명 "${v.domain_div_cd.trim().toUpperCase()}"은 표준단어에 등록되지 않은 약어입니다. 표준단어를 먼저 등록하세요.`
+      if (!exists) {
+        return `도메인 영문명 "${v.domain_div_cd.trim().toUpperCase()}"은 표준단어에 등록되지 않은 약어입니다. 표준단어를 먼저 등록하세요.`
+      }
     }
     return null
   }
@@ -156,12 +160,13 @@ export default function DomainsPage() {
     setFormError(null)
     const payload = sanitizePayload(formValue)
     try {
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(payload)
+        closePanel()
       } else {
         await update(selectedRow.domain_id, payload)
+        setSelectedRow({ ...selectedRow, ...payload })
       }
-      closeModal()
       reloadAllDomains()
     } catch (e) {
       setFormError(e.message)
@@ -177,6 +182,7 @@ export default function DomainsPage() {
     try {
       await Promise.all([...selected].map((id) => domainsApi.delete(id)))
       setSelected(new Set())
+      if (selectedRow && selected.has(selectedRow.domain_id)) closePanel()
       await refetch()
       reloadAllDomains()
     } catch (e) {
@@ -193,6 +199,7 @@ export default function DomainsPage() {
     try {
       await remove(deleteTarget.domain_id)
       setDeleteTarget(null)
+      closePanel()
       reloadAllDomains()
     } catch (e) {
       alert(e.message)
@@ -208,6 +215,7 @@ export default function DomainsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
+      closePanel()
       await refetch()
       reloadAllDomains()
     } catch (e) {
@@ -217,7 +225,6 @@ export default function DomainsPage() {
     }
   }
 
-  // ── 도메인 그룹 CRUD ───────────────────────────────
   const openGroupCreate = () => {
     setEditingGroup(null)
     setGroupForm({ group_nm: '', group_desc: '', use_yn: 'Y' })
@@ -263,22 +270,42 @@ export default function DomainsPage() {
     }
   }
 
+  const groupNavItems = useMemo(
+    () => groups.map((g) => ({ id: g.group_nm, label: g.group_nm, icon: '▣' })),
+    [groups],
+  )
+
+  const getRow = (row) => {
+    const typeLen = [row.data_type, formatDataLength(row.data_length, row.data_type)]
+      .filter(Boolean).join(' ')
+    return {
+      id: row.domain_id,
+      primary: row.domain_nm,
+      secondary: row.infotype || typeLen,
+      meta: [row.info_type, typeLen, row.subject_name].filter(Boolean).join(' · '),
+      status: row.use_yn === 'Y' ? '사용' : '미사용',
+      statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
+    }
+  }
+
+  const detailOpen = panelMode != null
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="split-page">
+      <div className="split-page__header">
         <div>
           <h1 className="page-title">표준 도메인 관리</h1>
           <p className="page-subtitle">속성 값의 유형과 데이터 타입을 정의하는 도메인을 관리합니다.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="split-page__actions">
           {selected.size > 0 && (
             <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
               {bulkDeleting ? <span className="spinner" /> : null}
               선택 삭제 ({selected.size}건)
             </button>
           )}
-          <button className="btn btn-secondary" onClick={openGroupCreate}>⚙ 도메인 그룹 관리</button>
-          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>📂 엑셀 대량 등록</button>
+          <button className="btn btn-secondary" onClick={openGroupCreate}>도메인 그룹 관리</button>
+          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>엑셀 대량 등록</button>
           <button
             className="btn btn-danger"
             onClick={() => setShowDeleteAll(true)}
@@ -291,58 +318,106 @@ export default function DomainsPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">도메인 목록 ({total}건)</span>
-          <div className="toolbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <select
-                className="form-control"
-                style={{ width: '120px', height: '34px', fontSize: '12px', padding: '0 6px' }}
-                value={groupFilter}
-                onChange={(e) => { setGroupFilter(e.target.value); setPage(1) }}
-              >
-                <option value="">전체 그룹</option>
-                {groups.map((g) => (
-                  <option key={g.group_id} value={g.group_nm}>{g.group_nm}</option>
-                ))}
-              </select>
-              <SubjectAreaFilter
-                value={subjectFilter}
-                onChange={(v) => { setSubjectFilter(v); setPage(1) }}
-              />
-              <SearchBar
-                value={search}
-                onChange={(v) => { setSearch(v); setPage(1) }}
-                placeholder="도메인명, 인포타입, 데이터타입 검색"
-              />
-            </div>
-          </div>
-        </div>
-
-        {error && <div className="alert alert-error" style={{ margin: '16px 24px' }}>{error}</div>}
-
-        {loading ? (
-          <div className="loading-overlay"><span className="spinner" /></div>
-        ) : (
-          <DataTable
-            columns={COLUMNS} rows={data} onRowClick={openEdit}
-            emptyText="등록된 도메인이 없습니다."
-            selectable rowKey="domain_id"
-            selected={selected} onSelectionChange={setSelected}
-            showRowNumber rowNumberOffset={(page - 1) * PAGE_SIZE}
+      <SplitView
+        detailOpen={detailOpen}
+        left={(
+          <SplitNav
+            title="탐색"
+            allLabel="전체 도메인"
+            allCount={total}
+            onSelectAll={() => { setSubjectFilter(''); setGroupFilter(''); setPage(1) }}
+            sections={[
+              {
+                key: 'subjects',
+                title: '주제영역',
+                items: navItems,
+                selectedId: subjectFilter,
+                onSelect: (id) => { setSubjectFilter(id); setPage(1) },
+              },
+              {
+                key: 'groups',
+                title: '도메인 그룹',
+                items: groupNavItems,
+                selectedId: groupFilter,
+                onSelect: (id) => { setGroupFilter(id); setPage(1) },
+              },
+            ]}
           />
         )}
+        center={(
+          <div className="split-list-chrome">
+            <div className="split-list-chrome__toolbar">
+              <div className="split-list-chrome__title-row">
+                <span className="split-list-chrome__title">
+                  도메인 목록
+                  <span className="split-list-chrome__count"> · {total}건</span>
+                </span>
+              </div>
+              <div className="split-list-chrome__filters">
+                <SearchBar
+                  value={search}
+                  onChange={(v) => { setSearch(v); setPage(1) }}
+                  placeholder="도메인명, 인포타입, 데이터타입 검색"
+                />
+              </div>
+            </div>
+            {error && <div className="alert alert-error" style={{ margin: '8px 12px' }}>{error}</div>}
+            <div className="split-list-chrome__body">
+              <MetaList
+                rows={data}
+                getRow={getRow}
+                selectedId={selectedRow?.domain_id}
+                onSelect={openEdit}
+                selectable
+                selectedIds={selected}
+                onSelectionChange={setSelected}
+                loading={loading}
+                emptyText="등록된 도메인이 없습니다."
+              />
+            </div>
+            <div className="split-list-chrome__footer">
+              <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+            </div>
+          </div>
+        )}
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="도메인을 선택하세요"
+            emptyHint="목록에서 도메인을 클릭하면 타입·길이·인포타입 상세가 여기에 표시됩니다."
+            title={panelMode === 'create' ? '표준 도메인 등록' : (formValue.domain_nm || '표준 도메인 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.infotype || selectedRow?.infotype) : '새 도메인 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
+                </button>
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <DomainForm value={formValue} onChange={setFormValue} groups={groups} />
+          </SplitDetail>
+        )}
+      />
 
-        <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-      </div>
-
-      {/* ── 도메인 그룹 관리 모달 ── */}
       {showGroupModal && (
         <Modal
           title={editingGroup ? '도메인 그룹 수정' : '도메인 그룹 등록'}
           onClose={closeGroupModal}
-          footer={
+          footer={(
             <>
               <button className="btn btn-secondary" onClick={closeGroupModal} disabled={groupSaving}>취소</button>
               <button className="btn btn-primary" onClick={handleGroupSave} disabled={groupSaving}>
@@ -350,11 +425,9 @@ export default function DomainsPage() {
                 {editingGroup ? '저장' : '등록'}
               </button>
             </>
-          }
+          )}
         >
           {groupError && <div className="alert alert-error">{groupError}</div>}
-
-          {/* 등록된 그룹 목록 (신규 등록 시에만 표시) */}
           {!editingGroup && groups.length > 0 && (
             <div style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: '#374151' }}>
@@ -389,7 +462,6 @@ export default function DomainsPage() {
               </div>
             </div>
           )}
-
           <div className="form-group">
             <label className="form-label required">그룹명</label>
             <input
@@ -433,32 +505,6 @@ export default function DomainsPage() {
         />
       )}
 
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '표준 도메인 등록' : '표준 도메인 수정'}
-          onClose={closeModal}
-          footer={
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >삭제</button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          }
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <DomainForm value={formValue} onChange={setFormValue} groups={groups} />
-        </Modal>
-      )}
-
       {deleteTarget && (
         <ConfirmDialog
           message={`"${deleteTarget.domain_nm}" 도메인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
@@ -483,21 +529,19 @@ export default function DomainsPage() {
           columns={EXCEL_COLUMNS}
           rowDefaults={{ subject_id: 'STD01' }}
           validateRow={(r) => {
-            const validTypes = ['VARCHAR','CHAR','NUMBER','INTEGER','DATE','TIMESTAMP','BOOLEAN','CLOB']
+            const validTypes = ['VARCHAR', 'CHAR', 'NUMBER', 'INTEGER', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'CLOB']
             const dt = r.data_type?.trim().toUpperCase()
-            if (dt && !validTypes.includes(dt))
+            if (dt && !validTypes.includes(dt)) {
               return `데이터타입 "${r.data_type}"은 허용되지 않습니다. (${validTypes.join(', ')})`
-
+            }
             const normalized = normalizeDataLengthInput(
               mergeLegacyLengthScale(r.data_length, r.data_scale, dt) ?? r.data_length,
               dt,
             )
             const lenErr = validateDataLength(normalized, dt)
             if (lenErr) return lenErr
-
             const yn = r.use_yn?.trim().toUpperCase()
-            if (yn && yn !== 'Y' && yn !== 'N')
-              return '사용여부는 Y 또는 N 만 입력 가능합니다.'
+            if (yn && yn !== 'Y' && yn !== 'N') return '사용여부는 Y 또는 N 만 입력 가능합니다.'
             return null
           }}
           onUpload={(rows) => domainsApi.bulk(rows)}

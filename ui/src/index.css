@@ -1,6 +1,10 @@
 @import './styles/variables.css';
 @import './styles/components.css';
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -14,10 +18,13 @@ html, body, #root {
 body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-  background-color: var(--color-bg);
+  color: var(--color-text-secondary);
+  background-color: #f5f5f7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+  line-height: 1.47059;
+  font-feature-settings: 'kern';
 }
 
 a {
@@ -31,4 +38,15 @@ button {
 
 input, select, textarea {
   font-family: var(--font-family);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-display);
+  letter-spacing: -0.022em;
+  font-weight: 600;
+}
+
+::selection {
+  background: rgba(0, 102, 204, 0.18);
 }

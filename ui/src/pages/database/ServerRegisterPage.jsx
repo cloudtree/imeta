@@ -1,12 +1,21 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useDbServers } from '../../hooks/useDbServers'
 import { dbServersApi } from '../../api/dbServers'
+import { wordsApi } from '../../api/words'
+import { termsApi } from '../../api/terms'
+import { domainsApi } from '../../api/domains'
 import DataTable from '../../components/common/DataTable'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
 import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ServerForm from './ServerForm'
+import QualityReviewReport from './QualityReviewReport'
+import {
+  classifyStandardReviewErrors,
+  reviewSelectedDefinitions,
+  summarizeStandardReviewGroups,
+} from './standardReviewUtils'
 
 const PAGE_SIZE = 50
 
@@ -17,34 +26,11 @@ function formatDateTime(value) {
   return date.toLocaleString('ko-KR')
 }
 
-const COLUMNS = [
-  { key: 'server_name', label: '서버명', sortable: true },
-  { key: 'host', label: '호스트', sortable: true },
-  { key: 'port', label: '포트' },
-  { key: 'database_name', label: 'DB명', sortable: true },
-  { key: 'username', label: '사용자' },
-  {
-    key: 'last_test_ok',
-    label: '연결상태',
-    render: (v) => {
-      if (v === 'Y') return <span className="badge badge-blue">성공</span>
-      if (v === 'N') return <span className="badge badge-gray">실패</span>
-      return <span className="badge badge-gray">미확인</span>
-    },
-  },
-  {
-    key: 'last_test_at',
-    label: '마지막 확인',
-    render: (v) => formatDateTime(v),
-  },
-  {
-    key: 'use_yn',
-    label: '사용',
-    render: (v) => (
-      <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
-    ),
-  },
-]
+function ConnectionStatus({ value }) {
+  if (value === 'Y') return <span className="badge badge-blue">성공</span>
+  if (value === 'N') return <span className="badge badge-gray">실패</span>
+  return <span className="badge badge-gray">미확인</span>
+}
 
 export default function ServerRegisterPage() {
   const [search, setSearch] = useState('')
@@ -60,6 +46,10 @@ export default function ServerRegisterPage() {
   const [testing, setTesting] = useState(false)
   const [formError, setFormError] = useState(null)
   const [testResult, setTestResult] = useState(null)
+
+  const [reviewingId, setReviewingId] = useState(null)
+  const [report, setReport] = useState(null)
+  const [reportError, setReportError] = useState(null)
 
   const filtered = useMemo(() => {
     if (!search.trim()) return data
@@ -77,6 +67,90 @@ export default function ServerRegisterPage() {
     const start = (page - 1) * PAGE_SIZE
     return filtered.slice(start, start + PAGE_SIZE)
   }, [filtered, page])
+
+  const handleQualityReview = useCallback(async (server) => {
+    if (!server?.server_id) return
+    setReviewingId(server.server_id)
+    setReportError(null)
+    try {
+      const [schemaRes, wordsRes, termsRes, domainsRes] = await Promise.all([
+        dbServersApi.getSchemaDefinitions(server.server_id),
+        wordsApi.dictionary(),
+        termsApi.getAll({ limit: 10000, use_yn: 'Y' }),
+        domainsApi.getAll({ limit: 10000, use_yn: 'Y' }),
+      ])
+
+      const defs = Array.isArray(schemaRes) ? schemaRes : (schemaRes.items ?? [])
+      if (!defs.length) {
+        throw new Error('검토할 스키마 정의가 없습니다. 연결 상태와 권한을 확인하세요.')
+      }
+
+      const words = Array.isArray(wordsRes) ? wordsRes : (wordsRes.items ?? wordsRes ?? [])
+      const terms = Array.isArray(termsRes) ? termsRes : (termsRes.items ?? [])
+      const domains = Array.isArray(domainsRes) ? domainsRes : (domainsRes.items ?? [])
+
+      const groups = reviewSelectedDefinitions(defs, { words, terms, domains })
+      const summary = summarizeStandardReviewGroups(groups)
+      const classified = classifyStandardReviewErrors(groups)
+
+      setReport({
+        server: schemaRes.server || server,
+        summary,
+        categories: classified.categories,
+        groups,
+        generatedAt: new Date(),
+      })
+    } catch (e) {
+      setReportError(e.message || '품질 검토에 실패했습니다.')
+    } finally {
+      setReviewingId(null)
+    }
+  }, [])
+
+  const columns = useMemo(
+    () => [
+      { key: 'server_name', label: '서버명', sortable: true },
+      { key: 'host', label: '호스트', sortable: true },
+      { key: 'port', label: '포트' },
+      { key: 'database_name', label: 'DB명', sortable: true },
+      { key: 'username', label: '사용자' },
+      {
+        key: 'last_test_ok',
+        label: '연결상태',
+        render: (v) => <ConnectionStatus value={v} />,
+      },
+      {
+        key: 'review_request',
+        label: '검토요청',
+        render: (_v, row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="server-review-btn"
+              disabled={reviewingId === row.server_id}
+              onClick={() => handleQualityReview(row)}
+            >
+              {reviewingId === row.server_id ? <span className="spinner" /> : null}
+              검토보고서
+            </button>
+          </div>
+        ),
+      },
+      {
+        key: 'last_test_at',
+        label: '마지막 확인',
+        render: (v) => formatDateTime(v),
+      },
+      {
+        key: 'use_yn',
+        label: '사용',
+        render: (v) => (
+          <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>
+        ),
+      },
+    ],
+    [handleQualityReview, reviewingId],
+  )
 
   const openCreate = () => {
     setFormValue(ServerForm.EMPTY)
@@ -197,6 +271,20 @@ export default function ServerRegisterPage() {
         <button className="btn btn-primary" onClick={openCreate}>+ 서버 등록</button>
       </div>
 
+      {reportError && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          {reportError}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            style={{ marginLeft: '0.75rem' }}
+            onClick={() => setReportError(null)}
+          >
+            닫기
+          </button>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
           <span className="card-title">DB 서버 목록 ({total}건)</span>
@@ -215,8 +303,9 @@ export default function ServerRegisterPage() {
           <div className="loading-overlay"><span className="spinner" /></div>
         ) : (
           <DataTable
-            columns={COLUMNS}
+            columns={columns}
             rows={paged}
+            rowKey="server_id"
             onRowClick={openEdit}
             emptyText="등록된 DB 서버가 없습니다."
           />
@@ -249,31 +338,33 @@ export default function ServerRegisterPage() {
               </button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving || testing}>
                 {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
+                저장
               </button>
             </>
           }
         >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          {testResult && (
-            <div className={`alert ${testResult.ok ? 'alert-success' : 'alert-error'}`}>
-              {testResult.message}
-            </div>
-          )}
-          <ServerForm
-            value={formValue}
-            onChange={setFormValue}
-            isEdit={modalMode === 'edit'}
-          />
+          <ServerForm value={formValue} onChange={setFormValue} error={formError} testResult={testResult} />
         </Modal>
       )}
 
       {deleteTarget && (
         <ConfirmDialog
+          title="서버 삭제"
           message={`"${deleteTarget.server_name}" 서버를 삭제하시겠습니까?`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={saving}
+        />
+      )}
+
+      {report && (
+        <QualityReviewReport
+          server={report.server}
+          summary={report.summary}
+          categories={report.categories}
+          groups={report.groups}
+          generatedAt={report.generatedAt}
+          onClose={() => setReport(null)}
         />
       )}
     </div>

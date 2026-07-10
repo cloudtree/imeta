@@ -3,11 +3,13 @@ import { useTerms } from '../../hooks/useTerms'
 import { termsApi } from '../../api/terms'
 import { wordsApi } from '../../api/words'
 import { domainsApi } from '../../api/domains'
-import DataTable from '../../components/common/DataTable'
+import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import SplitView from '../../components/common/SplitView'
+import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
+import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import SubjectAreaFilter from '../../components/common/SubjectAreaFilter'
-import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import TermForm from './TermForm'
@@ -28,28 +30,20 @@ const EXCEL_COLUMNS = [
 
 const PAGE_SIZE = 50
 
-const COLUMNS = [
-  { key: 'subject_name',  label: '주제영역',      render: (v) => v || '-' },
-  { key: 'logical_term',  label: '논리명',        sortable: true },
-  { key: 'physical_term', label: '물리명',        sortable: true },
-  { key: 'domain_div_cd', label: '도메인그룹명',  sortable: true },
-  { key: 'domain_nm',     label: '도메인 인포타입', render: (v) => v || '-' },
-  { key: 'data_type',     label: '데이터타입',    render: (v) => <span className="badge badge-gray">{v}</span> },
-  { key: 'data_len',      label: '데이터길이',    sortable: true },
-  {
-    key: 'use_yn',
-    label: '사용',
-    render: (v) => <span className={`badge ${v === 'Y' ? 'badge-blue' : 'badge-gray'}`}>{v}</span>,
-  },
-]
-
 export default function TermsPage() {
-  const [search,  setSearch]  = useState('')
+  const [search, setSearch] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('search') || ''
+    } catch {
+      return ''
+    }
+  })
   const [subjectFilter, setSubjectFilter] = useState('')
-  const [page,    setPage]    = useState(1)
-  const [words,   setWords]   = useState([])
+  const [page, setPage] = useState(1)
+  const [words, setWords] = useState([])
   const [domains, setDomains] = useState([])
   const [allTerms, setAllTerms] = useState([])
+  const { navItems } = useSubjectAreaNav()
 
   useEffect(() => {
     wordsApi.dictionary()
@@ -78,49 +72,42 @@ export default function TermsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useTerms(listParams)
 
-  const [modalMode,    setModalMode]    = useState(null)
-  const [formValue,    setFormValue]    = useState(TermForm.EMPTY)
-  const [selectedRow,  setSelectedRow]  = useState(null)
+  const [panelMode, setPanelMode] = useState(null)
+  const [formValue, setFormValue] = useState(TermForm.EMPTY)
+  const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
-  const [showExcel,    setShowExcel]    = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [showExcel, setShowExcel] = useState(false)
   const [showDeleteAll, setShowDeleteAll] = useState(false)
   const [deleteAllLoading, setDeleteAllLoading] = useState(false)
-  const [selected,     setSelected]     = useState(new Set())
+  const [selected, setSelected] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const openCreate = () => {
+    setSelectedRow(null)
     setFormValue(TermForm.EMPTY)
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
-    // _segments 는 논리명 입력 시 자동 재계산되므로 null 로 초기화
     setFormValue({ ...row, _segments: null })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
+    setFormError(null)
   }
 
   const validate = (v) => {
     const { firstError } = validateTermFields(
-      {
-        ...v,
-        term_id: selectedRow?.term_id ?? null,
-      },
-      {
-        words,
-        domains,
-        existingTerms: allTerms,
-        requireDomainGroup: true,
-      }
+      { ...v, term_id: selectedRow?.term_id ?? null },
+      { words, domains, existingTerms: allTerms, requireDomainGroup: true },
     )
     return firstError
   }
@@ -130,15 +117,15 @@ export default function TermsPage() {
     if (err) { setFormError(err); return }
     setSaving(true)
     setFormError(null)
-    // _segments 는 UI 전용 — API 전송 제외
     const { _segments, _domainTouched, ...payload } = formValue
     try {
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(payload)
+        closePanel()
       } else {
         await update(selectedRow.term_id, payload)
+        setSelectedRow({ ...selectedRow, ...payload })
       }
-      closeModal()
       reloadAllTerms()
     } catch (e) {
       setFormError(e.message)
@@ -154,6 +141,7 @@ export default function TermsPage() {
     try {
       await Promise.all([...selected].map((id) => termsApi.delete(id)))
       setSelected(new Set())
+      if (selectedRow && selected.has(selectedRow.term_id)) closePanel()
       await refetch()
       reloadAllTerms()
     } catch (e) {
@@ -172,6 +160,7 @@ export default function TermsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
+      closePanel()
       await refetch()
       reloadAllTerms()
     } catch (e) {
@@ -186,6 +175,7 @@ export default function TermsPage() {
     try {
       await remove(deleteTarget.term_id)
       setDeleteTarget(null)
+      closePanel()
       reloadAllTerms()
     } catch (e) {
       alert(e.message)
@@ -194,21 +184,36 @@ export default function TermsPage() {
     }
   }
 
+  const getRow = (row) => {
+    const typeLen = [row.data_type, row.data_len].filter(Boolean).join(' ')
+    return {
+      id: row.term_id,
+      primary: row.logical_term,
+      secondary: row.physical_term,
+      meta: [row.domain_nm || row.domain_div_cd, typeLen, row.subject_name]
+        .filter(Boolean).join(' · '),
+      status: row.use_yn === 'Y' ? '사용' : '미사용',
+      statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
+    }
+  }
+
+  const detailOpen = panelMode != null
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="split-page">
+      <div className="split-page__header">
         <div>
           <h1 className="page-title">표준 용어 관리</h1>
           <p className="page-subtitle">표준 단어를 조합하여 구성된 용어를 등록하고 관리합니다.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="split-page__actions">
           {selected.size > 0 && (
             <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
               {bulkDeleting ? <span className="spinner" /> : null}
               선택 삭제 ({selected.size}건)
             </button>
           )}
-          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>📂 엑셀 대량 등록</button>
+          <button className="btn btn-secondary" onClick={() => setShowExcel(true)}>엑셀 대량 등록</button>
           <button
             className="btn btn-danger"
             onClick={() => setShowDeleteAll(true)}
@@ -221,66 +226,86 @@ export default function TermsPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">용어 목록 ({total}건)</span>
-          <div className="toolbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <SubjectAreaFilter
-                value={subjectFilter}
-                onChange={(v) => { setSubjectFilter(v); setPage(1) }}
-              />
-              <SearchBar
-                value={search}
-                onChange={(v) => { setSearch(v); setPage(1) }}
-                placeholder="논리명, 물리명, 도메인구분 검색"
-              />
-            </div>
-          </div>
-        </div>
-
-        {error && <div className="alert alert-error" style={{ margin: '16px 24px' }}>{error}</div>}
-
-        {loading ? (
-          <div className="loading-overlay"><span className="spinner" /></div>
-        ) : (
-          <DataTable
-            columns={COLUMNS} rows={data} onRowClick={openEdit}
-            emptyText="등록된 용어가 없습니다."
-            selectable rowKey="term_id"
-            selected={selected} onSelectionChange={setSelected}
-            showRowNumber rowNumberOffset={(page - 1) * PAGE_SIZE}
+      <SplitView
+        detailOpen={detailOpen}
+        left={(
+          <SplitNav
+            title="주제영역"
+            allLabel="전체 용어"
+            allCount={total}
+            items={navItems}
+            selectedId={subjectFilter}
+            onSelect={(id) => { setSubjectFilter(id); setPage(1) }}
           />
         )}
-
-        <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-      </div>
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '표준 용어 등록' : '표준 용어 수정'}
-          onClose={closeModal}
-          footer={
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >삭제</button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          }
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} />
-        </Modal>
-      )}
+        center={(
+          <div className="split-list-chrome">
+            <div className="split-list-chrome__toolbar">
+              <div className="split-list-chrome__title-row">
+                <span className="split-list-chrome__title">
+                  용어 목록
+                  <span className="split-list-chrome__count"> · {total}건</span>
+                </span>
+              </div>
+              <div className="split-list-chrome__filters">
+                <SearchBar
+                  value={search}
+                  onChange={(v) => { setSearch(v); setPage(1) }}
+                  placeholder="논리명, 물리명, 도메인구분 검색"
+                />
+              </div>
+            </div>
+            {error && <div className="alert alert-error" style={{ margin: '8px 12px' }}>{error}</div>}
+            <div className="split-list-chrome__body">
+              <MetaList
+                rows={data}
+                getRow={getRow}
+                selectedId={selectedRow?.term_id}
+                onSelect={openEdit}
+                selectable
+                selectedIds={selected}
+                onSelectionChange={setSelected}
+                loading={loading}
+                emptyText="등록된 용어가 없습니다."
+              />
+            </div>
+            <div className="split-list-chrome__footer">
+              <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+            </div>
+          </div>
+        )}
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="용어를 선택하세요"
+            emptyHint="목록에서 용어를 클릭하면 논리·물리명, 데이터 타입, 도메인 연계 정보가 여기에 표시됩니다."
+            title={panelMode === 'create' ? '표준 용어 등록' : (formValue.logical_term || '표준 용어 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.physical_term || selectedRow?.physical_term) : '새 용어 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
+                </button>
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} />
+          </SplitDetail>
+        )}
+      />
 
       {deleteTarget && (
         <ConfirmDialog

@@ -152,7 +152,7 @@ export default function TableDefinitionReviewPage() {
             </button>
           )}
           <button
-            className="btn btn-secondary"
+            className={`btn ${selected.size > 0 ? 'btn-primary' : 'btn-secondary'}`}
             onClick={handleStandardReview}
             disabled={loading || reviewLoading || selected.size === 0}
           >

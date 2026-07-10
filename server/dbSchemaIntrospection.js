@@ -249,3 +249,94 @@ export async function fetchTableDefinition(client, schemaName, tableName, { sear
     total_columns: columns.length,
   }
 }
+
+function formatDataLength(column) {
+  if (column.character_maximum_length != null) return String(column.character_maximum_length)
+  if (
+    ['numeric', 'decimal'].includes(column.data_type)
+    && column.numeric_precision != null
+  ) {
+    if (column.numeric_scale != null) {
+      return `${column.numeric_precision},${column.numeric_scale}`
+    }
+    return String(column.numeric_precision)
+  }
+  return ''
+}
+
+/**
+ * 사용자 테이블 컬럼을 테이블정의서 행 형식으로 반환.
+ * 엔티티명 = 테이블 코멘트, 속성명 = 컬럼 코멘트
+ */
+export async function fetchSchemaDefinitionRows(client, { dbType = 'PostgreSQL' } = {}) {
+  const { rows } = await client.query(
+    `WITH user_tables AS (
+       SELECT table_schema, table_name
+       FROM information_schema.tables
+       WHERE table_type = 'BASE TABLE'
+         AND table_schema NOT IN ('information_schema', 'pg_catalog')
+         AND table_schema NOT LIKE 'pg_%'
+     ),
+     pk_cols AS (
+       SELECT
+         tc.table_schema,
+         tc.table_name,
+         kcu.column_name
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.key_column_usage kcu
+         ON tc.constraint_schema = kcu.constraint_schema
+        AND tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+       WHERE tc.constraint_type = 'PRIMARY KEY'
+     )
+     SELECT
+       c.table_schema AS schema_name,
+       c.table_name,
+       c.column_name,
+       c.ordinal_position AS column_order,
+       c.data_type,
+       c.udt_name,
+       c.character_maximum_length,
+       c.numeric_precision,
+       c.numeric_scale,
+       obj_description(
+         (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass,
+         'pg_class'
+       ) AS table_comment,
+       col_description(
+         (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass,
+         c.ordinal_position
+       ) AS column_comment,
+       CASE WHEN pk.column_name IS NOT NULL THEN 'Y' ELSE 'N' END AS pk_yn
+     FROM information_schema.columns c
+     JOIN user_tables ut
+       ON ut.table_schema = c.table_schema
+      AND ut.table_name = c.table_name
+     LEFT JOIN pk_cols pk
+       ON pk.table_schema = c.table_schema
+      AND pk.table_name = c.table_name
+      AND pk.column_name = c.column_name
+     WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog')
+       AND c.table_schema NOT LIKE 'pg_%'
+     ORDER BY c.table_schema, c.table_name, c.ordinal_position`,
+  )
+
+  return rows
+    .filter((row) => isUserSchema(row.schema_name))
+    .map((row) => ({
+      def_id: `${row.schema_name}.${row.table_name}.${row.column_name}`,
+      schema_name: row.schema_name,
+      db_type: dbType,
+      entity_name: (row.table_comment || '').trim(),
+      table_name: row.table_name,
+      attribute_name: (row.column_comment || '').trim(),
+      column_name: row.column_name,
+      column_order: row.column_order,
+      pk_yn: row.pk_yn,
+      data_type: row.udt_name || row.data_type,
+      data_length: formatDataLength(row),
+      domain_name: '',
+      infotype: '',
+    }))
+}

@@ -1,27 +1,54 @@
-import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
-import Sidebar from './Sidebar'
+import Footer from './Footer'
 
 export default function Layout() {
-  const [databaseMenuOpen, setDatabaseMenuOpen] = useState(false)
   const { pathname } = useLocation()
-  const isWideContent = pathname.startsWith('/database/table-definition-review')
+  const isHome = pathname === '/'
+  const isSplitContent =
+    pathname.startsWith('/words')
+    || pathname.startsWith('/terms')
+    || pathname.startsWith('/domains')
+    || pathname.startsWith('/subject-areas')
+    || pathname.startsWith('/users')
+  const isWideContent =
+    isSplitContent
+    || pathname.startsWith('/servers')
+    || pathname.startsWith('/database/table-definition-review')
+    || pathname.startsWith('/database/review')
 
   return (
-    <div className="app-shell">
-      <Header
-        databaseMenuOpen={databaseMenuOpen}
-        onToggleDatabaseMenu={() => setDatabaseMenuOpen((open) => !open)}
-      />
-      <div className="app-body">
-        <Sidebar databaseMenuOpen={databaseMenuOpen} />
-        <main className="app-main">
-          <div className={`app-content${isWideContent ? ' app-content--wide' : ''}`}>
-            <Outlet />
-          </div>
-        </main>
-      </div>
+    <div
+      className={[
+        'app-shell',
+        isHome ? 'app-shell--dash' : '',
+        isSplitContent ? 'app-shell--split' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {isHome && (
+        <div className="dash-bg" aria-hidden="true">
+          <div className="dash-bg__mesh" />
+          <div className="dash-bg__orb dash-bg__orb--a" />
+          <div className="dash-bg__orb dash-bg__orb--b" />
+          <div className="dash-bg__orb dash-bg__orb--c" />
+          <div className="dash-bg__grid" />
+          <div className="dash-bg__noise" />
+        </div>
+      )}
+      <Header />
+      <main className="app-main">
+        <div
+          className={[
+            'app-content',
+            isHome ? 'app-content--dash' : '',
+            isWideContent ? 'app-content--wide' : '',
+            isSplitContent ? 'app-content--split' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <Outlet />
+        </div>
+      </main>
+      {!isSplitContent && <Footer />}
     </div>
   )
 }

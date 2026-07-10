@@ -11,6 +11,8 @@ import SubjectAreasPage from './pages/subjectAreas/SubjectAreasPage'
 import ServerRegisterPage from './pages/database/ServerRegisterPage'
 import DatabaseReviewPage from './pages/database/DatabaseReviewPage'
 import TableDefinitionReviewPage from './pages/database/TableDefinitionReviewPage'
+import UsersPage from './pages/users/UsersPage'
+import AdminRoute from './components/auth/AdminRoute'
 
 export default function App() {
   return (
@@ -27,6 +29,9 @@ export default function App() {
             <Route path="/words" element={<WordsPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/domains" element={<DomainsPage />} />
+            <Route element={<AdminRoute />}>
+              <Route path="/users" element={<UsersPage />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>

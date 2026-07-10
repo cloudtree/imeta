@@ -4,6 +4,14 @@ import { getAuthToken } from '../api/client'
 
 const AuthContext = createContext(null)
 
+function normalizeUser(data) {
+  if (!data?.username) return null
+  return {
+    username: data.username,
+    role_cd: data.role_cd === 'ADMIN' ? 'ADMIN' : 'USER',
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -18,7 +26,7 @@ export function AuthProvider({ children }) {
 
     try {
       const me = await fetchMe()
-      setUser({ username: me.username })
+      setUser(normalizeUser(me))
     } catch {
       apiLogout()
       setUser(null)
@@ -33,7 +41,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const data = await apiLogin(username, password)
-    setUser({ username: data.username })
+    setUser(normalizeUser(data))
     return data
   }, [])
 
@@ -46,6 +54,7 @@ export function AuthProvider({ children }) {
     user,
     loading,
     isAuthenticated: !!user,
+    isAdmin: user?.role_cd === 'ADMIN',
     login,
     logout,
   }), [user, loading, login, logout])

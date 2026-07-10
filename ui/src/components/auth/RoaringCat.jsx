@@ -1,26 +1,32 @@
-export default function RoaringCat({ size = 48 }) {
+export default function RoaringCat({ size = 48, idPrefix = 'cat', animated = true }) {
+  const faceId = `${idPrefix}-face`
+  const earId = `${idPrefix}-ear`
   return (
-    <div className="roaring-cat" style={{ width: size, height: size }} aria-hidden="true">
+    <div
+      className={`roaring-cat${animated ? '' : ' roaring-cat--static'}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <radialGradient id="catFace" cx="50%" cy="40%" r="58%">
+          <radialGradient id={faceId} cx="50%" cy="40%" r="58%">
             <stop offset="0%" stopColor="#ffcba4" />
             <stop offset="55%" stopColor="#f4a261" />
             <stop offset="100%" stopColor="#e76f51" />
           </radialGradient>
-          <radialGradient id="catEarInner" cx="50%" cy="50%" r="50%">
+          <radialGradient id={earId} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#ffb4a2" />
             <stop offset="100%" stopColor="#f4a261" />
           </radialGradient>
         </defs>
 
         <g className="roaring-cat__body">
-          <ellipse cx="50" cy="58" rx="30" ry="26" fill="url(#catFace)" />
+          <ellipse cx="50" cy="58" rx="30" ry="26" fill={`url(#${faceId})`} />
 
           <polygon className="roaring-cat__ear roaring-cat__ear--left" points="22,36 14,12 38,28" fill="#f4a261" />
-          <polygon className="roaring-cat__ear roaring-cat__ear--left" points="24,34 18,18 34,28" fill="url(#catEarInner)" />
+          <polygon className="roaring-cat__ear roaring-cat__ear--left" points="24,34 18,18 34,28" fill={`url(#${earId})`} />
           <polygon className="roaring-cat__ear roaring-cat__ear--right" points="78,36 86,12 62,28" fill="#f4a261" />
-          <polygon className="roaring-cat__ear roaring-cat__ear--right" points="76,34 82,18 66,28" fill="url(#catEarInner)" />
+          <polygon className="roaring-cat__ear roaring-cat__ear--right" points="76,34 82,18 66,28" fill={`url(#${earId})`} />
 
           <ellipse cx="36" cy="52" rx="7" ry="8" fill="#fff" opacity="0.35" />
           <ellipse cx="64" cy="52" rx="7" ry="8" fill="#fff" opacity="0.35" />

@@ -9,8 +9,11 @@ import subjectAreasRouter from './routes/subjectAreas.js'
 import domainGroupsRouter from './routes/domainGroups.js'
 import dbServersRouter    from './routes/dbServers.js'
 import tableDefinitionsRouter from './routes/tableDefinitions.js'
-import { requireAuth } from './middleware/requireAuth.js'
+import activityRouter from './routes/activity.js'
+import usersRouter from './routes/users.js'
+import { requireAuth, requireAdmin } from './middleware/requireAuth.js'
 import { migrateDomainsDataLength } from './migrateDataLength.js'
+import { migrateUsers } from './migrateUsers.js'
 import { describeDbTarget } from './dbConfig.js'
 import { pool } from './db.js'
 
@@ -41,6 +44,8 @@ app.use('/api/subject-areas',  subjectAreasRouter)
 app.use('/api/domain-groups',  domainGroupsRouter)
 app.use('/api/db-servers',     dbServersRouter)
 app.use('/api/table-definitions', tableDefinitionsRouter)
+app.use('/api/activity', activityRouter)
+app.use('/api/users', requireAdmin, usersRouter)
 
 app.use((err, _req, res, _next) => {
   if (err.type === 'entity.too.large') {
@@ -59,6 +64,7 @@ app.listen(PORT, async () => {
     console.log(`[db] source=${target.source} host=${target.host} database=${target.database} user=${target.user}`)
     await pool.query('SELECT 1')
     await migrateDomainsDataLength()
+    await migrateUsers()
     console.log(`Server running on port ${PORT}`)
   } catch (err) {
     console.error('[startup] failed:', err.message)

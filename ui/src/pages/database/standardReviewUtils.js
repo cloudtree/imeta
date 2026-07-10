@@ -8,6 +8,23 @@ import {
   findSimilarDomains,
 } from '../../utils/termValidation'
 
+/** 엔티티명 필수 접미사 → 테이블명 대체 약어 */
+export const ENTITY_TYPE_SUFFIX_MAP = {
+  기본: 'M',
+  이력: 'H',
+  상세: 'D',
+  내역: 'L',
+  코드: 'C',
+  집계: 'A',
+  채번: 'N',
+  백업: 'B',
+  임시: 'T',
+  로그: 'G',
+  연계: 'I',
+}
+
+export const ENTITY_TYPE_SUFFIXES = Object.keys(ENTITY_TYPE_SUFFIX_MAP)
+
 function normPhysical(value) {
   return (value || '').trim().toUpperCase()
 }
@@ -28,6 +45,44 @@ function buildReviewSection(items, status) {
 }
 
 /**
+ * 엔티티명 끝의 유형 접미사(기본/이력/…) 추출
+ */
+export function extractEntityTypeSuffix(entityName) {
+  const normalized = normalizeLogicalTerm(entityName)
+  if (!normalized) return null
+
+  // 긴 접미사 우선 (예: '상세' vs 단음절)
+  const sorted = [...ENTITY_TYPE_SUFFIXES].sort((a, b) => b.length - a.length)
+  for (const suffix of sorted) {
+    if (normalized.endsWith(suffix) && normalized.length > suffix.length) {
+      return {
+        suffix,
+        code: ENTITY_TYPE_SUFFIX_MAP[suffix],
+        body: normalized.slice(0, -suffix.length),
+      }
+    }
+    if (normalized === suffix) {
+      return {
+        suffix,
+        code: ENTITY_TYPE_SUFFIX_MAP[suffix],
+        body: '',
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * 엔티티 본문(접미사 제외) + 유형 약어로 예상 테이블명 생성 (대문자)
+ */
+function buildExpectedTableName(bodyPhysical, typeCode) {
+  const body = (bodyPhysical || '').replace(/^_+|_+$/g, '').toUpperCase()
+  const code = (typeCode || '').toUpperCase()
+  if (!body) return code
+  return `${body}_${code}`
+}
+
+/**
  * 엔티티명 기준 테이블명 검토
  */
 export function reviewEntityTableName(row, { words = [] } = {}) {
@@ -36,10 +91,7 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
 
   const entityName = row.entity_name?.trim() || ''
   const tableName = row.table_name?.trim() || ''
-  const normalizedEntity = normalizeLogicalTerm(entityName)
-  const { segments, isAmbiguous, physForward, physReverse } = resolveLogicalSegments(entityName, words)
-  const matchedWords = segments.filter((s) => s.matched).map((s) => s.word)
-  const unmatched = segments.filter((s) => !s.matched)
+  const typeInfo = extractEntityTypeSuffix(entityName)
 
   if (!entityName) {
     status = bumpStatus(status, addItem(items, {
@@ -47,50 +99,90 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
       level: 'error',
       message: '엔티티명이 비어 있습니다.',
     }))
-  } else if (!words.length) {
-    status = bumpStatus(status, addItem(items, {
-      category: '엔티티명',
-      level: 'warning',
-      message: '표준단어 사전이 비어 있어 엔티티명을 검토할 수 없습니다.',
-    }))
-  } else if (unmatched.length > 0) {
+  } else if (!typeInfo) {
     status = bumpStatus(status, addItem(items, {
       category: '엔티티명',
       level: 'error',
-      message: `엔티티명에 미등록 단어가 있습니다: ${unmatched.map((s) => `"${s.text}"`).join(', ')}`,
-    }))
-  } else if (!physForward) {
-    status = bumpStatus(status, addItem(items, {
-      category: '엔티티명',
-      level: 'error',
-      message: '엔티티명을 표준단어로 분해할 수 없습니다.',
+      message: `엔티티명 맨 끝에 유형 접미사가 없습니다. (${ENTITY_TYPE_SUFFIXES.join(', ')})`,
+      detail: '예: 고객기본, 주문이력, 상품상세',
     }))
   } else {
-    const breakdown = matchedWords
-      .map((w) => `${w.word_nm}(${w.abb_word_nm})`)
-      .join(' + ')
     status = bumpStatus(status, addItem(items, {
       category: '엔티티명',
       level: 'ok',
-      message: `엔티티명 단어 분해: ${breakdown}`,
-      detail: `단어 기반 물리명 예상: ${physForward}`,
+      message: `유형 접미사 "${typeInfo.suffix}" → 테이블 약어 "${typeInfo.code}"`,
     }))
+  }
 
-    if (isAmbiguous) {
+  const bodyLogical = typeInfo?.body || ''
+  const {
+    segments,
+    isAmbiguous,
+    physForward,
+    physReverse,
+  } = bodyLogical
+    ? resolveLogicalSegments(bodyLogical, words)
+    : { segments: [], isAmbiguous: false, physForward: '', physReverse: '' }
+
+  const matchedWords = segments.filter((s) => s.matched).map((s) => s.word)
+  const unmatched = segments.filter((s) => !s.matched)
+  const expectedTableName = typeInfo && physForward
+    ? buildExpectedTableName(physForward, typeInfo.code)
+    : ''
+
+  if (entityName && typeInfo) {
+    if (!bodyLogical) {
+      status = bumpStatus(status, addItem(items, {
+        category: '엔티티명',
+        level: 'error',
+        message: `엔티티명이 유형 접미사("${typeInfo.suffix}")만으로 구성되어 있습니다.`,
+      }))
+    } else if (!words.length) {
       status = bumpStatus(status, addItem(items, {
         category: '엔티티명',
         level: 'warning',
-        message: `엔티티명 단어 분리가 모호합니다. 앞→뒤: ${physForward} / 뒤→앞: ${physReverse}`,
+        message: '표준단어 사전이 비어 있어 엔티티 본문을 검토할 수 없습니다.',
       }))
-    }
-
-    const homonyms = findHomonyms(matchedWords, words)
-    if (homonyms.length > 0) {
+    } else if (unmatched.length > 0) {
       status = bumpStatus(status, addItem(items, {
         category: '엔티티명',
-        level: 'warning',
-        message: `동음이의어 확인: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`,
+        level: 'error',
+        message: `엔티티명(접미사 제외)에 미등록 단어가 있습니다: ${unmatched.map((s) => `"${s.text}"`).join(', ')}`,
       }))
+    } else if (!physForward) {
+      status = bumpStatus(status, addItem(items, {
+        category: '엔티티명',
+        level: 'error',
+        message: '엔티티명 본문을 표준단어로 분해할 수 없습니다.',
+      }))
+    } else {
+      const breakdown = [
+        ...matchedWords.map((w) => `${w.word_nm}(${w.abb_word_nm})`),
+        `${typeInfo.suffix}(${typeInfo.code})`,
+      ].join(' + ')
+      status = bumpStatus(status, addItem(items, {
+        category: '엔티티명',
+        level: 'ok',
+        message: `엔티티명 단어 분해: ${breakdown}`,
+        detail: `예상 테이블명: ${expectedTableName}`,
+      }))
+
+      if (isAmbiguous) {
+        status = bumpStatus(status, addItem(items, {
+          category: '엔티티명',
+          level: 'warning',
+          message: `엔티티명 단어 분리가 모호합니다. 앞→뒤: ${physForward} / 뒤→앞: ${physReverse}`,
+        }))
+      }
+
+      const homonyms = findHomonyms(matchedWords, words)
+      if (homonyms.length > 0) {
+        status = bumpStatus(status, addItem(items, {
+          category: '엔티티명',
+          level: 'warning',
+          message: `동음이의어 확인: ${homonyms.map((w) => `"${w.word_nm}"`).join(', ')}`,
+        }))
+      }
     }
   }
 
@@ -101,35 +193,46 @@ export function reviewEntityTableName(row, { words = [] } = {}) {
       message: '테이블명이 비어 있습니다.',
     }))
   } else {
-    if (!/^[a-z][a-z0-9_]*$/.test(tableName)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(tableName)) {
       status = bumpStatus(status, addItem(items, {
         category: '테이블명',
-        level: 'warning',
-        message: `테이블명 "${tableName}"은 소문자 영문·숫자·밑줄(snake_case) 형식을 권장합니다.`,
+        level: 'error',
+        message: `테이블명 "${tableName}"은 대문자 영문·숫자·밑줄(SNAKE_CASE)로 작성해야 합니다.`,
       }))
     }
 
-    if (physForward) {
-      const expected = physForward.toLowerCase()
-      const actual = tableName.toLowerCase()
-      if (actual === expected) {
+    if (typeInfo) {
+      const actual = tableName.toUpperCase()
+      const endsWithCode = new RegExp(`(^|_)${typeInfo.code.toUpperCase()}$`).test(actual)
+
+      if (!endsWithCode) {
+        status = bumpStatus(status, addItem(items, {
+          category: '테이블명',
+          level: 'error',
+          message: `테이블명 끝이 유형 약어 "${typeInfo.code}"(${typeInfo.suffix})가 아닙니다.`,
+          detail: `엔티티 접미사 "${typeInfo.suffix}"는 테이블명에서 "${typeInfo.code}"로 대체되어야 합니다.`,
+        }))
+      } else if (expectedTableName) {
+        if (actual === expectedTableName) {
+          status = bumpStatus(status, addItem(items, {
+            category: '테이블명',
+            level: 'ok',
+            message: `테이블명이 엔티티 유형 규칙과 일치합니다. (${tableName})`,
+            detail: `${typeInfo.suffix} → ${typeInfo.code}`,
+          }))
+        } else {
+          status = bumpStatus(status, addItem(items, {
+            category: '테이블명',
+            level: 'error',
+            message: `테이블명 "${tableName}"이 예상명(${expectedTableName})과 다릅니다.`,
+            detail: `엔티티 본문 단어 약어 + "_${typeInfo.code}" 규칙을 확인하세요. (${typeInfo.suffix}→${typeInfo.code})`,
+          }))
+        }
+      } else if (endsWithCode) {
         status = bumpStatus(status, addItem(items, {
           category: '테이블명',
           level: 'ok',
-          message: `테이블명이 엔티티명 단어 분해 결과와 일치합니다. (${tableName})`,
-        }))
-      } else {
-        const lastWord = matchedWords[matchedWords.length - 1]
-        const lastAbbr = lastWord?.abb_word_nm?.toLowerCase()
-        const containsLast = lastAbbr && actual.includes(lastAbbr)
-
-        status = bumpStatus(status, addItem(items, {
-          category: '테이블명',
-          level: containsLast ? 'warning' : 'error',
-          message: `테이블명 "${tableName}"이 엔티티명 기준 예상명(${physForward})과 다릅니다.`,
-          detail: containsLast
-            ? `테이블명에 분류어 약어 "${lastAbbr}"가 포함되어 있습니다.`
-            : '엔티티명과 테이블명 명명 규칙을 확인하세요.',
+          message: `테이블명 끝이 유형 약어 "${typeInfo.code}"(${typeInfo.suffix})와 일치합니다.`,
         }))
       }
     }
@@ -486,4 +589,95 @@ export function summarizeStandardReviewGroups(groups) {
   }
 
   return { total, ok, warning, error }
+}
+
+const ERROR_CATEGORY_ORDER = ['엔티티명', '테이블명', '표준단어', '표준용어', '표준도메인']
+
+/**
+ * 검토 결과에서 오류(level=error)를 카테고리별로 집계
+ */
+export function classifyStandardReviewErrors(groups) {
+  const map = new Map()
+
+  const bump = (category, message, sample) => {
+    if (!map.has(category)) {
+      map.set(category, { category, count: 0, messages: new Map(), samples: [] })
+    }
+    const entry = map.get(category)
+    entry.count += 1
+    if (message) {
+      entry.messages.set(message, (entry.messages.get(message) || 0) + 1)
+    }
+    if (sample && entry.samples.length < 5) {
+      entry.samples.push(sample)
+    }
+  }
+
+  for (const group of groups) {
+    const entityItems = group.entityReview?.items || []
+    for (const item of entityItems) {
+      if (item.level !== 'error') continue
+      bump(item.category || '기타', item.message, {
+        table: group.table_name,
+        entity: group.entity_name,
+        message: item.message,
+      })
+    }
+
+    for (const row of group.rows) {
+      const attrItems = row.attributeReview?.items || []
+      for (const item of attrItems) {
+        if (item.level !== 'error') continue
+        bump(item.category || '기타', item.message, {
+          table: group.table_name,
+          column: row.column_name,
+          attribute: row.attribute_name,
+          message: item.message,
+        })
+      }
+    }
+  }
+
+  const categories = ERROR_CATEGORY_ORDER
+    .map((category) => {
+      const entry = map.get(category)
+      if (!entry) {
+        return {
+          category,
+          count: 0,
+          topMessages: [],
+          samples: [],
+        }
+      }
+      const topMessages = [...entry.messages.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([message, count]) => ({ message, count }))
+      return {
+        category,
+        count: entry.count,
+        topMessages,
+        samples: entry.samples,
+      }
+    })
+    .concat(
+      [...map.keys()]
+        .filter((key) => !ERROR_CATEGORY_ORDER.includes(key))
+        .map((category) => {
+          const entry = map.get(category)
+          const topMessages = [...entry.messages.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4)
+            .map(([message, count]) => ({ message, count }))
+          return {
+            category,
+            count: entry.count,
+            topMessages,
+            samples: entry.samples,
+          }
+        }),
+    )
+
+  const totalErrors = categories.reduce((sum, c) => sum + c.count, 0)
+  return { categories, totalErrors }
 }

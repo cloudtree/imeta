@@ -1,43 +1,29 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useDbServers } from '../../hooks/useDbServers'
 import { dbServersApi } from '../../api/dbServers'
-import DataTable from '../../components/common/DataTable'
-import Pagination from '../../components/common/Pagination'
-import SearchBar from '../../components/common/SearchBar'
-import Modal from '../../components/common/Modal'
-import { COLUMN_DEF_COLUMNS, filterTableRows, filterDefinitionColumns } from './reviewUtils'
-
-const PAGE_SIZE = 50
-
-const TABLE_COLUMNS = [
-  { key: 'schema_name', label: '스키마', sortable: true },
-  { key: 'table_name', label: '테이블명', sortable: true },
-  { key: 'table_comment', label: '테이블설명', render: (v) => v || '-' },
-  {
-    key: 'matched_columns',
-    label: '매칭 컬럼',
-    render: (v) => (v ? <span className="badge badge-blue">{v}</span> : '-'),
-  },
-  { key: 'column_count', label: '컬럼수', render: (v) => <span className="badge badge-gray">{v ?? 0}</span> },
-  { key: 'pk_columns', label: 'PK', render: (v) => v || '-' },
-]
+import { wordsApi } from '../../api/words'
+import { termsApi } from '../../api/terms'
+import { domainsApi } from '../../api/domains'
+import TableDefinitionSheet from './TableDefinitionSheet'
+import StandardReviewPanel from './StandardReviewPanel'
+import { filterDefinitionRowsByFilters } from './tableDefinitionConstants'
+import { reviewSelectedDefinitions } from './standardReviewUtils'
 
 export default function DatabaseReviewPage() {
   const { data: servers, loading: serversLoading } = useDbServers({ use_yn: 'Y' })
 
   const [selectedServerId, setSelectedServerId] = useState('')
-  const [tables, setTables] = useState([])
+  const [rows, setRows] = useState([])
   const [serverInfo, setServerInfo] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
 
-  const [selectedTable, setSelectedTable] = useState(null)
-  const [tableDefinition, setTableDefinition] = useState(null)
-  const [definitionLoading, setDefinitionLoading] = useState(false)
-  const [definitionError, setDefinitionError] = useState(null)
-  const [columnSearch, setColumnSearch] = useState('')
+  const [schemaName, setSchemaName] = useState('')
+  const [dbType, setDbType] = useState('')
+  const [tableSearch, setTableSearch] = useState('')
+  const [selected, setSelected] = useState(new Set())
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewGroups, setReviewGroups] = useState(null)
 
   useEffect(() => {
     if (!selectedServerId && servers.length) {
@@ -45,18 +31,18 @@ export default function DatabaseReviewPage() {
     }
   }, [servers, selectedServerId])
 
-  const loadTables = useCallback(async () => {
+  const loadDefinitions = useCallback(async () => {
     if (!selectedServerId) return
     setLoading(true)
     setError(null)
-    setTables([])
+    setRows([])
     setServerInfo(null)
-    setSelectedTable(null)
-    setTableDefinition(null)
-    setColumnSearch('')
+    setSelected(new Set())
+    setReviewGroups(null)
+    setTableSearch('')
     try {
-      const res = await dbServersApi.getSchemaTables(selectedServerId)
-      setTables(res.items ?? [])
+      const res = await dbServersApi.getSchemaDefinitions(selectedServerId)
+      setRows(res.items ?? [])
       setServerInfo(res.server ?? null)
     } catch (e) {
       setError(e.message)
@@ -66,47 +52,81 @@ export default function DatabaseReviewPage() {
   }, [selectedServerId])
 
   useEffect(() => {
-    if (selectedServerId) loadTables()
-  }, [selectedServerId, loadTables])
+    if (selectedServerId) loadDefinitions()
+  }, [selectedServerId, loadDefinitions])
 
-  const filtered = useMemo(() => filterTableRows(tables, search), [tables, search])
-
-  const paged = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, page])
-
-  const filteredDefinitionColumns = useMemo(
-    () => (tableDefinition ? filterDefinitionColumns(tableDefinition.columns, columnSearch) : []),
-    [tableDefinition, columnSearch],
+  const schemaOptions = useMemo(
+    () => [...new Set(rows.map((row) => row.schema_name))].sort(),
+    [rows],
   )
 
-  const openDefinition = async (row) => {
-    setSelectedTable(row)
-    setTableDefinition(null)
-    setDefinitionError(null)
-    setColumnSearch(search.trim())
-    setDefinitionLoading(true)
-    try {
-      const res = await dbServersApi.getTableDefinition(
-        selectedServerId,
-        row.schema_name,
-        row.table_name,
-      )
-      setTableDefinition(res)
-    } catch (e) {
-      setDefinitionError(e.message)
-    } finally {
-      setDefinitionLoading(false)
-    }
-  }
+  const dbTypeOptions = useMemo(() => {
+    const source = schemaName
+      ? rows.filter((row) => row.schema_name === schemaName)
+      : rows
+    return [...new Set(source.map((row) => row.db_type))].sort()
+  }, [rows, schemaName])
 
-  const closeDefinition = () => {
-    setSelectedTable(null)
-    setTableDefinition(null)
-    setDefinitionError(null)
-    setColumnSearch('')
-  }
+  useEffect(() => {
+    if (!rows.length) {
+      setSchemaName('')
+      setDbType('')
+      return
+    }
+    if (!schemaName || !schemaOptions.includes(schemaName)) {
+      setSchemaName(schemaOptions[0] ?? '')
+    }
+  }, [rows, schemaOptions, schemaName])
+
+  useEffect(() => {
+    if (!rows.length) {
+      setDbType('')
+      return
+    }
+    if (!dbType || !dbTypeOptions.includes(dbType)) {
+      setDbType(dbTypeOptions[0] ?? '')
+    }
+  }, [rows, dbTypeOptions, dbType])
+
+  const filteredRows = useMemo(
+    () => filterDefinitionRowsByFilters(rows, { schemaName, dbType, tableSearch }),
+    [rows, schemaName, dbType, tableSearch],
+  )
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredRows.map((row) => row.def_id))
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [filteredRows])
+
+  const handleStandardReview = useCallback(async () => {
+    const selectedRows = filteredRows.filter((row) => selected.has(row.def_id))
+    if (!selectedRows.length) {
+      alert('표준검토할 항목을 선택하세요.')
+      return
+    }
+
+    setReviewLoading(true)
+    try {
+      const [wordsRes, termsRes, domainsRes] = await Promise.all([
+        wordsApi.dictionary(),
+        termsApi.getAll({ limit: 10000, use_yn: 'Y' }),
+        domainsApi.getAll({ limit: 10000, use_yn: 'Y' }),
+      ])
+
+      const words = Array.isArray(wordsRes) ? wordsRes : (wordsRes.items ?? [])
+      const terms = Array.isArray(termsRes) ? termsRes : (termsRes.items ?? [])
+      const domains = Array.isArray(domainsRes) ? domainsRes : (domainsRes.items ?? [])
+
+      setReviewGroups(reviewSelectedDefinitions(selectedRows, { words, terms, domains }))
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setReviewLoading(false)
+    }
+  }, [filteredRows, selected])
 
   return (
     <div>
@@ -114,124 +134,93 @@ export default function DatabaseReviewPage() {
         <div>
           <h1 className="page-title">데이터베이스검토</h1>
           <p className="page-subtitle">
-            등록된 DB의 사용자 테이블을 엔티티/테이블 정의서 형식으로 조회합니다.
+            등록된 DB 스키마를 테이블 정의서 형식으로 조회하고 표준을 검토합니다.
+            {serverInfo ? ` (${serverInfo.server_name} / ${serverInfo.database_name})` : ''}
           </p>
         </div>
-        <button
-          className="btn btn-secondary"
-          onClick={loadTables}
-          disabled={!selectedServerId || loading}
-        >
-          새로고침
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select
+            className="form-control"
+            style={{ minWidth: '220px' }}
+            value={selectedServerId}
+            onChange={(e) => setSelectedServerId(e.target.value)}
+            disabled={serversLoading || !servers.length}
+          >
+            {!servers.length && <option value="">등록된 서버 없음</option>}
+            {servers.map((server) => (
+              <option key={server.server_id} value={server.server_id}>
+                {server.server_name} ({server.database_name})
+              </option>
+            ))}
+          </select>
+          <button
+            className={`btn ${selected.size > 0 ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={handleStandardReview}
+            disabled={loading || reviewLoading || selected.size === 0}
+          >
+            {reviewLoading ? <span className="spinner" /> : null}
+            표준검토
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={loadDefinitions}
+            disabled={!selectedServerId || loading}
+          >
+            새로고침
+          </button>
+        </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            테이블 목록
-            {serverInfo ? ` — ${serverInfo.server_name} / ${serverInfo.database_name}` : ''}
-            {search.trim()
-              ? ` (검색 ${filtered.length}건 / 전체 ${tables.length}건)`
-              : tables.length ? ` (${tables.length}건)` : ''}
-          </span>
-          <div className="toolbar" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <select
-              className="form-control"
-              style={{ minWidth: '220px' }}
-              value={selectedServerId}
-              onChange={(e) => {
-                setSelectedServerId(e.target.value)
-                setPage(1)
-                setSearch('')
-              }}
-              disabled={serversLoading || !servers.length}
-            >
-              {!servers.length && <option value="">등록된 서버 없음</option>}
-              {servers.map((server) => (
-                <option key={server.server_id} value={server.server_id}>
-                  {server.server_name} ({server.database_name})
-                </option>
-              ))}
-            </select>
-            <SearchBar
-              value={search}
-              onChange={(v) => { setSearch(v); setPage(1) }}
-              placeholder="테이블명, 설명, PK, 컬럼명/설명 검색"
-            />
-          </div>
-        </div>
-
-        {error && <div className="alert alert-error" style={{ margin: '16px 24px' }}>{error}</div>}
-
-        {loading ? (
-          <div className="loading-overlay"><span className="spinner" /></div>
-        ) : (
-          <DataTable
-            columns={TABLE_COLUMNS}
-            rows={paged}
-            rowKey="table_key"
-            showRowNumber
-            rowNumberOffset={(page - 1) * PAGE_SIZE}
-            onRowClick={openDefinition}
+      <div className={`definition-review-split${reviewGroups ? ' definition-review-split--with-panel' : ''}`}>
+        <div className="card definition-review-sheet">
+          <TableDefinitionSheet
+            rows={filteredRows}
+            loading={loading}
+            error={error}
+            schemaName={schemaName}
+            dbType={dbType}
+            tableSearch={tableSearch}
+            schemaOptions={schemaOptions}
+            dbTypeOptions={dbTypeOptions}
+            onSchemaChange={(value) => {
+              setSchemaName(value)
+              setTableSearch('')
+              setSelected(new Set())
+              setReviewGroups(null)
+            }}
+            onDbTypeChange={(value) => {
+              setDbType(value)
+              setTableSearch('')
+              setSelected(new Set())
+              setReviewGroups(null)
+            }}
+            onTableSearchChange={(value) => {
+              setTableSearch(value)
+              setReviewGroups(null)
+            }}
+            selected={selected}
+            onSelectionChange={setSelected}
             emptyText={
-              search.trim()
+              tableSearch.trim()
                 ? '검색 조건에 맞는 테이블이 없습니다.'
-                : servers.length
-                  ? '조회된 테이블이 없습니다.'
-                  : '서버등록에서 DB 서버를 먼저 등록하세요.'
+                : rows.length
+                  ? '선택한 조건에 맞는 컬럼 정의가 없습니다.'
+                  : servers.length
+                    ? '조회된 테이블이 없습니다.'
+                    : '서버등록에서 DB 서버를 먼저 등록하세요.'
             }
           />
-        )}
+        </div>
 
-        <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
-      </div>
-
-      {selectedTable && (
-        <Modal
-          wide
-          title={`테이블 정의서 — ${selectedTable.schema_name}.${selectedTable.table_name}`}
-          onClose={closeDefinition}
-          footer={
-            <button className="btn btn-secondary" onClick={closeDefinition}>닫기</button>
-          }
-        >
-          <div style={{ marginBottom: '16px', fontSize: '14px', color: '#4b5563' }}>
-            <div><strong>서버:</strong> {serverInfo?.server_name || '-'}</div>
-            <div><strong>데이터베이스:</strong> {serverInfo?.database_name || '-'}</div>
-            <div><strong>테이블설명:</strong> {tableDefinition?.table_comment || selectedTable.table_comment || '-'}</div>
-            <div><strong>PK:</strong> {selectedTable.pk_columns || '-'}</div>
+        {reviewGroups && (
+          <div className="card definition-review-panel">
+            <StandardReviewPanel
+              groups={reviewGroups}
+              onClose={() => setReviewGroups(null)}
+            />
           </div>
-
-          <SearchBar
-            value={columnSearch}
-            onChange={setColumnSearch}
-            placeholder="컬럼명, 설명, 타입, FK, 기본값 검색"
-          />
-
-          {definitionError && <div className="alert alert-error">{definitionError}</div>}
-
-          {definitionLoading ? (
-            <div className="loading-overlay"><span className="spinner" /></div>
-          ) : (
-            tableDefinition && (
-              <>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
-                  {columnSearch.trim()
-                    ? `컬럼 검색 결과 ${filteredDefinitionColumns.length}건 / 전체 ${tableDefinition.columns.length}건`
-                    : `전체 컬럼 ${tableDefinition.columns.length}건`}
-                </div>
-                <DataTable
-                  columns={COLUMN_DEF_COLUMNS}
-                  rows={filteredDefinitionColumns}
-                  rowKey="seq_no"
-                  emptyText={columnSearch.trim() ? '검색 조건에 맞는 컬럼이 없습니다.' : '컬럼 정보가 없습니다.'}
-                />
-              </>
-            )
-          )}
-        </Modal>
-      )}
+        )}
+      </div>
     </div>
   )
 }

@@ -17,6 +17,10 @@ export const dbServersApi = {
     const qs = new URLSearchParams(params).toString()
     return api.get(`${PATH}/${id}/schema/tables${qs ? `?${qs}` : ''}`)
   },
+  getSchemaDefinitions: (id, params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return api.get(`${PATH}/${id}/schema/definitions${qs ? `?${qs}` : ''}`)
+  },
   getTableDefinition: (id, schema, table, params = {}) => {
     const qs = new URLSearchParams(params).toString()
     return api.get(

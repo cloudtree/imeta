@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 
 /**
- * columns: [{ key, label, sortable?, render?, align? }]
+ * columns: [{ key, label, sortable?, render?, align?, hint? }]
  * rows: array of objects
  * rowKey: 행 고유 키 필드명 (기본 'id')
  * onRowClick: (row) => void
@@ -68,37 +68,50 @@ export default function DataTable({
         <thead>
           <tr>
             {selectable && (
-              <th style={{ width: '40px', textAlign: 'center' }}>
+              <th className="data-table__th data-table__th--check" scope="col">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
                   onChange={toggleAll}
-                  style={{ cursor: 'pointer' }}
+                  aria-label="전체 선택"
                 />
               </th>
             )}
             {showRowNumber && (
-              <th style={{ width: '48px', textAlign: 'center' }}>No.</th>
-            )}
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className={[
-                  col.sortable ? 'sortable' : '',
-                  sortKey === col.key ? `sort-${sortDir}` : '',
-                ].filter(Boolean).join(' ')}
-                style={{ textAlign: col.align ?? 'center' }}
-                onClick={col.sortable ? () => handleSort(col.key) : undefined}
-              >
-                {col.label}
-                {col.sortable && (
-                  <span className="sort-icon">
-                    {sortKey === col.key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
-                  </span>
-                )}
+              <th className="data-table__th data-table__th--num" scope="col">
+                <span className="data-table__th-label">No</span>
               </th>
-            ))}
+            )}
+            {columns.map((col) => {
+              const isSorted = sortKey === col.key
+              return (
+                <th
+                  key={col.key}
+                  scope="col"
+                  className={[
+                    'data-table__th',
+                    col.sortable ? 'data-table__th--sortable' : '',
+                    isSorted ? `data-table__th--sorted data-table__th--${sortDir}` : '',
+                  ].filter(Boolean).join(' ')}
+                  style={{ textAlign: col.align ?? 'center' }}
+                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                  title={col.hint || col.label}
+                >
+                  <span className="data-table__th-inner">
+                    <span className="data-table__th-label">{col.label}</span>
+                    {col.sortable ? (
+                      <span
+                        className={`data-table__sort${isSorted ? ' is-active' : ''}`}
+                        aria-hidden
+                      >
+                        {isSorted ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    ) : null}
+                  </span>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -114,20 +127,20 @@ export default function DataTable({
                 <tr
                   key={key}
                   onClick={() => onRowClick?.(row)}
-                  style={{ background: isSelected ? '#eff6ff' : undefined }}
+                  className={isSelected ? 'is-selected' : undefined}
                 >
                   {selectable && (
-                    <td style={{ textAlign: 'center', width: '40px' }} onClick={(e) => toggleRow(e, key)}>
+                    <td className="data-table__td--check" onClick={(e) => toggleRow(e, key)}>
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => {}}
-                        style={{ cursor: 'pointer' }}
+                        aria-label="행 선택"
                       />
                     </td>
                   )}
                   {showRowNumber && (
-                    <td style={{ textAlign: 'center', width: '48px', color: '#9ca3af', fontWeight: 600 }}>
+                    <td className="data-table__td--num">
                       {rowNumberOffset + i + 1}
                     </td>
                   )}
