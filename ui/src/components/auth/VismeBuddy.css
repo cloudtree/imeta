@@ -1,0 +1,213 @@
+.visme-buddy {
+  --skin: #e8b896;
+  --hair: #2a221c;
+  --shirt-a: #2f4a3a;
+  --shirt-b: #8a9490;
+  --pants: #2c241c;
+  --shoe: #c4a574;
+  position: relative;
+  width: 168px;
+  height: 340px;
+  transform: rotate(6deg);
+  transform-origin: 62% 96%;
+  animation: vismeBuddyIdle 3.4s ease-in-out infinite;
+  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.38));
+}
+
+.visme-buddy__shadow {
+  position: absolute;
+  left: 58%;
+  bottom: 4px;
+  width: 96px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.32);
+  filter: blur(5px);
+  transform: translateX(-50%);
+}
+
+.visme-buddy__body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.visme-buddy__head {
+  position: absolute;
+  top: 0;
+  left: 54%;
+  width: 62px;
+  height: 68px;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+.visme-buddy__hair {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 56px;
+  height: 32px;
+  border-radius: 26px 26px 12px 12px;
+  background: var(--hair);
+  transform: translateX(-50%);
+}
+
+.visme-buddy__face {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  width: 50px;
+  height: 52px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f0c4a0, var(--skin));
+  transform: translateX(-50%);
+}
+
+.visme-buddy__mustache {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  width: 24px;
+  height: 8px;
+  border-radius: 0 0 12px 12px;
+  background: var(--hair);
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.visme-buddy__glasses {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  width: 48px;
+  height: 14px;
+  transform: translateX(-50%);
+  z-index: 2;
+  background: linear-gradient(#111, #111) center / 8px 2px no-repeat;
+}
+
+.visme-buddy__glasses::before,
+.visme-buddy__glasses::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 18px;
+  height: 13px;
+  border-radius: 4px;
+  background: #151515;
+  border: 2px solid #0a0a0a;
+}
+
+.visme-buddy__glasses::before { left: 0; }
+.visme-buddy__glasses::after { right: 0; }
+
+.visme-buddy__torso {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  width: 78px;
+  height: 92px;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+.visme-buddy__shirt {
+  position: absolute;
+  inset: 0 6px;
+  border-radius: 16px 16px 10px 10px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--shirt-a) 0 10px,
+    var(--shirt-b) 10px 18px
+  );
+}
+
+.visme-buddy__arm {
+  position: absolute;
+  top: 10px;
+  width: 17px;
+  height: 82px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--shirt-b) 0 36%, var(--skin) 36% 100%);
+  transform-origin: 50% 8px;
+}
+
+.visme-buddy__arm--back {
+  left: -8px;
+  transform: rotate(14deg);
+  z-index: 2;
+}
+
+.visme-buddy__arm--lean {
+  right: -22px;
+  top: 6px;
+  height: 72px;
+  transform: rotate(-38deg) translate(6px, 10px);
+  z-index: 6;
+}
+
+.visme-buddy__legs {
+  position: absolute;
+  top: 148px;
+  left: 50%;
+  width: 68px;
+  height: 156px;
+  transform: translateX(-50%);
+}
+
+.visme-buddy__leg {
+  position: absolute;
+  top: 0;
+  width: 24px;
+  height: 116px;
+  border-radius: 12px;
+  background: var(--pants);
+  transform-origin: 50% 0;
+}
+
+.visme-buddy__leg--l {
+  left: 6px;
+  transform: rotate(-10deg);
+}
+
+.visme-buddy__leg--r {
+  right: 0;
+  transform: rotate(20deg) translateY(6px);
+}
+
+.visme-buddy__shoe {
+  position: absolute;
+  bottom: 18px;
+  width: 32px;
+  height: 13px;
+  border-radius: 8px 14px 6px 6px;
+  background: linear-gradient(180deg, #d4b48a, var(--shoe));
+}
+
+.visme-buddy__shoe--l {
+  left: 0;
+  transform: rotate(-8deg);
+}
+
+.visme-buddy__shoe--r {
+  right: -6px;
+  bottom: 10px;
+  transform: rotate(14deg);
+}
+
+@keyframes vismeBuddyIdle {
+  0%, 100% { transform: rotate(6deg) translateY(0); }
+  50% { transform: rotate(7deg) translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visme-buddy { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .visme-buddy {
+    width: 120px;
+    height: 250px;
+  }
+}
