@@ -6,10 +6,10 @@ import { domainsApi } from '../../api/domains'
 import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
-import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
+import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import TermForm from './TermForm'
@@ -72,7 +72,7 @@ export default function TermsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useTerms(listParams)
 
-  const [panelMode, setPanelMode] = useState(null)
+  const [modalMode, setModalMode] = useState(null)
   const [formValue, setFormValue] = useState(TermForm.EMPTY)
   const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -88,18 +88,18 @@ export default function TermsPage() {
     setSelectedRow(null)
     setFormValue(TermForm.EMPTY)
     setFormError(null)
-    setPanelMode('create')
+    setModalMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row, _segments: null })
     setFormError(null)
-    setPanelMode('edit')
+    setModalMode('edit')
   }
 
-  const closePanel = () => {
-    setPanelMode(null)
+  const closeModal = () => {
+    setModalMode(null)
     setSelectedRow(null)
     setFormError(null)
   }
@@ -119,13 +119,12 @@ export default function TermsPage() {
     setFormError(null)
     const { _segments, _domainTouched, ...payload } = formValue
     try {
-      if (panelMode === 'create') {
+      if (modalMode === 'create') {
         await create(payload)
-        closePanel()
       } else {
         await update(selectedRow.std_term_id, payload)
-        setSelectedRow({ ...selectedRow, ...payload })
       }
+      closeModal()
       reloadAllTerms()
     } catch (e) {
       setFormError(e.message)
@@ -141,7 +140,7 @@ export default function TermsPage() {
     try {
       await Promise.all([...selected].map((id) => termsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.std_term_id)) closePanel()
+      if (selectedRow && selected.has(selectedRow.std_term_id)) closeModal()
       await refetch()
       reloadAllTerms()
     } catch (e) {
@@ -160,7 +159,7 @@ export default function TermsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
-      closePanel()
+      closeModal()
       await refetch()
       reloadAllTerms()
     } catch (e) {
@@ -175,7 +174,7 @@ export default function TermsPage() {
     try {
       await remove(deleteTarget.std_term_id)
       setDeleteTarget(null)
-      closePanel()
+      closeModal()
       reloadAllTerms()
     } catch (e) {
       alert(e.message)
@@ -196,8 +195,6 @@ export default function TermsPage() {
       statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
     }
   }
-
-  const detailOpen = panelMode != null
 
   return (
     <div className="split-page">
@@ -227,7 +224,6 @@ export default function TermsPage() {
       </div>
 
       <SplitView
-        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="시스템 · 주제영역"
@@ -274,38 +270,36 @@ export default function TermsPage() {
             </div>
           </div>
         )}
-        right={(
-          <SplitDetail
-            empty={!detailOpen}
-            emptyTitle="용어를 선택하세요"
-            emptyHint="목록에서 용어를 클릭하면 논리·물리명, 데이터 타입, 도메인 연계 정보가 여기에 표시됩니다."
-            title={panelMode === 'create' ? '표준 용어 등록' : (formValue.logical_term_nm || '표준 용어 수정')}
-            subtitle={panelMode === 'edit' ? (formValue.physical_term_nm || selectedRow?.physical_term_nm) : '새 용어 입력'}
-            onClose={closePanel}
-            footer={(
-              <>
-                {panelMode === 'edit' && (
-                  <button
-                    className="btn btn-danger btn-sm"
-                    style={{ marginRight: 'auto' }}
-                    onClick={() => setDeleteTarget(selectedRow)}
-                  >
-                    삭제
-                  </button>
-                )}
-                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                  {saving ? <span className="spinner" /> : null}
-                  {panelMode === 'create' ? '등록' : '저장'}
-                </button>
-              </>
-            )}
-          >
-            {formError && <div className="alert alert-error">{formError}</div>}
-            <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} />
-          </SplitDetail>
-        )}
       />
+
+      {modalMode && (
+        <Modal
+          title={modalMode === 'create' ? '표준 용어 등록' : '표준 용어 수정'}
+          onClose={closeModal}
+          wide
+          footer={(
+            <>
+              {modalMode === 'edit' && (
+                <button
+                  className="btn btn-danger btn-sm"
+                  style={{ marginRight: 'auto' }}
+                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
+                >
+                  삭제
+                </button>
+              )}
+              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? <span className="spinner" /> : null}
+                {modalMode === 'create' ? '등록' : '저장'}
+              </button>
+            </>
+          )}
+        >
+          {formError && <div className="alert alert-error">{formError}</div>}
+          <TermForm value={formValue} onChange={setFormValue} words={words} domains={domains} />
+        </Modal>
+      )}
 
       {deleteTarget && (
         <ConfirmDialog

@@ -5,7 +5,6 @@ import { domainGroupsApi } from '../../api/domainGroups'
 import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
-import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
@@ -86,7 +85,7 @@ export default function DomainsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useDomains(listParams)
 
-  const [panelMode, setPanelMode] = useState(null)
+  const [modalMode, setModalMode] = useState(null)
   const [formValue, setFormValue] = useState(DomainForm.EMPTY)
   const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -107,18 +106,18 @@ export default function DomainsPage() {
       ...(nav.subject_area_id ? { subject_area_id: nav.subject_area_id } : {}),
     })
     setFormError(null)
-    setPanelMode('create')
+    setModalMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row, data_len: toFormDataLength(row) })
     setFormError(null)
-    setPanelMode('edit')
+    setModalMode('edit')
   }
 
-  const closePanel = () => {
-    setPanelMode(null)
+  const closeModal = () => {
+    setModalMode(null)
     setSelectedRow(null)
     setFormError(null)
   }
@@ -148,13 +147,12 @@ export default function DomainsPage() {
     setFormError(null)
     const payload = sanitizePayload(formValue)
     try {
-      if (panelMode === 'create') {
+      if (modalMode === 'create') {
         await create(payload)
-        closePanel()
       } else {
         await update(selectedRow.std_domain_id, payload)
-        setSelectedRow({ ...selectedRow, ...payload })
       }
+      closeModal()
       reloadAllDomains()
     } catch (e) {
       setFormError(e.message)
@@ -170,7 +168,7 @@ export default function DomainsPage() {
     try {
       await Promise.all([...selected].map((id) => domainsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.std_domain_id)) closePanel()
+      if (selectedRow && selected.has(selectedRow.std_domain_id)) closeModal()
       await refetch()
       reloadAllDomains()
     } catch (e) {
@@ -187,7 +185,7 @@ export default function DomainsPage() {
     try {
       await remove(deleteTarget.std_domain_id)
       setDeleteTarget(null)
-      closePanel()
+      closeModal()
       reloadAllDomains()
     } catch (e) {
       alert(e.message)
@@ -203,7 +201,7 @@ export default function DomainsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
-      closePanel()
+      closeModal()
       await refetch()
       reloadAllDomains()
     } catch (e) {
@@ -276,8 +274,6 @@ export default function DomainsPage() {
     }
   }
 
-  const detailOpen = panelMode != null
-
   return (
     <div className="split-page">
       <div className="split-page__header">
@@ -307,7 +303,6 @@ export default function DomainsPage() {
       </div>
 
       <SplitView
-        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="탐색"
@@ -368,38 +363,35 @@ export default function DomainsPage() {
             </div>
           </div>
         )}
-        right={(
-          <SplitDetail
-            empty={!detailOpen}
-            emptyTitle="도메인을 선택하세요"
-            emptyHint="목록에서 도메인을 클릭하면 타입·길이·인포타입 상세가 여기에 표시됩니다."
-            title={panelMode === 'create' ? '표준 도메인 등록' : (formValue.std_domain_nm || '표준 도메인 수정')}
-            subtitle={panelMode === 'edit' ? (formValue.info_type_nm || selectedRow?.info_type_nm) : '새 도메인 입력'}
-            onClose={closePanel}
-            footer={(
-              <>
-                {panelMode === 'edit' && (
-                  <button
-                    className="btn btn-danger btn-sm"
-                    style={{ marginRight: 'auto' }}
-                    onClick={() => setDeleteTarget(selectedRow)}
-                  >
-                    삭제
-                  </button>
-                )}
-                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                  {saving ? <span className="spinner" /> : null}
-                  {panelMode === 'create' ? '등록' : '저장'}
-                </button>
-              </>
-            )}
-          >
-            {formError && <div className="alert alert-error">{formError}</div>}
-            <DomainForm value={formValue} onChange={setFormValue} groups={groups} />
-          </SplitDetail>
-        )}
       />
+
+      {modalMode && (
+        <Modal
+          title={modalMode === 'create' ? '표준 도메인 등록' : '표준 도메인 수정'}
+          onClose={closeModal}
+          footer={(
+            <>
+              {modalMode === 'edit' && (
+                <button
+                  className="btn btn-danger btn-sm"
+                  style={{ marginRight: 'auto' }}
+                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
+                >
+                  삭제
+                </button>
+              )}
+              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? <span className="spinner" /> : null}
+                {modalMode === 'create' ? '등록' : '저장'}
+              </button>
+            </>
+          )}
+        >
+          {formError && <div className="alert alert-error">{formError}</div>}
+          <DomainForm value={formValue} onChange={setFormValue} groups={groups} />
+        </Modal>
+      )}
 
       {showGroupModal && (
         <Modal
