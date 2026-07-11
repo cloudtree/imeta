@@ -4,10 +4,10 @@ import { wordsApi } from '../../api/words'
 import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import WordForm from './WordForm'
@@ -59,7 +59,7 @@ export default function WordsPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useWords(listParams)
 
-  const [modalMode, setModalMode] = useState(null)
+  const [panelMode, setPanelMode] = useState(null) // null | 'create' | 'edit'
   const [formValue, setFormValue] = useState(WordForm.EMPTY)
   const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -75,18 +75,18 @@ export default function WordsPage() {
     setSelectedRow(null)
     setFormValue(WordForm.EMPTY)
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
     setFormError(null)
   }
@@ -118,12 +118,13 @@ export default function WordsPage() {
     setSaving(true)
     setFormError(null)
     try {
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(formValue)
+        closePanel()
       } else {
         await update(selectedRow.std_word_id, formValue)
+        setSelectedRow({ ...selectedRow, ...formValue })
       }
-      closeModal()
       reloadAllWords()
     } catch (e) {
       setFormError(e.message)
@@ -137,7 +138,7 @@ export default function WordsPage() {
     try {
       await remove(deleteTarget.std_word_id)
       setDeleteTarget(null)
-      closeModal()
+      closePanel()
       reloadAllWords()
     } catch (e) {
       alert(e.message)
@@ -153,7 +154,7 @@ export default function WordsPage() {
     try {
       await Promise.all([...selected].map((id) => wordsApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.std_word_id)) closeModal()
+      if (selectedRow && selected.has(selectedRow.std_word_id)) closePanel()
       await refetch()
       reloadAllWords()
     } catch (e) {
@@ -172,7 +173,7 @@ export default function WordsPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
-      closeModal()
+      closePanel()
       await refetch()
       reloadAllWords()
     } catch (e) {
@@ -191,6 +192,8 @@ export default function WordsPage() {
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
   })
+
+  const detailOpen = panelMode != null
 
   return (
     <div className="split-page">
@@ -220,6 +223,7 @@ export default function WordsPage() {
       </div>
 
       <SplitView
+        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="주제영역"
@@ -266,35 +270,38 @@ export default function WordsPage() {
             </div>
           </div>
         )}
-      />
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '표준 단어 등록' : '표준 단어 수정'}
-          onClose={closeModal}
-          footer={(
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >
-                  삭제
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="단어를 선택하세요"
+            emptyHint="목록에서 단어를 클릭하면 상세 정보가 여기에 표시됩니다. 새 단어는 우측 상단에서 등록할 수 있습니다."
+            title={panelMode === 'create' ? '표준 단어 등록' : (formValue.std_word_nm || '표준 단어 수정')}
+            subtitle={panelMode === 'edit' ? (formValue.abb_word_nm || selectedRow?.abb_word_nm) : '새 단어 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
                 </button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          )}
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <WordForm value={formValue} onChange={setFormValue} />
-        </Modal>
-      )}
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <WordForm value={formValue} onChange={setFormValue} />
+          </SplitDetail>
+        )}
+      />
 
       {deleteTarget && (
         <ConfirmDialog

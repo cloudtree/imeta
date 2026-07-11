@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react'
 import { useSubjectAreas } from '../../hooks/useSubjectAreas'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import SubjectAreaForm from './SubjectAreaForm'
 
@@ -18,7 +18,7 @@ export default function SubjectAreasPage() {
 
   const { data, total, loading, error, create, update, remove } = useSubjectAreas({})
 
-  const [modalMode, setModalMode] = useState(null)
+  const [panelMode, setPanelMode] = useState(null)
   const [formValue, setFormValue] = useState(SubjectAreaForm.EMPTY)
   const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -46,18 +46,18 @@ export default function SubjectAreasPage() {
     setSelectedRow(null)
     setFormValue(SubjectAreaForm.EMPTY)
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
     setSelectedRow(row)
     setFormValue({ ...row })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
     setFormError(null)
   }
@@ -75,12 +75,13 @@ export default function SubjectAreasPage() {
     setSaving(true)
     setFormError(null)
     try {
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(formValue)
+        closePanel()
       } else {
         await update(selectedRow.subject_area_id, formValue)
+        setSelectedRow({ ...selectedRow, ...formValue })
       }
-      closeModal()
     } catch (e) {
       setFormError(e.message)
     } finally {
@@ -93,7 +94,7 @@ export default function SubjectAreasPage() {
     try {
       await remove(deleteTarget.subject_area_id)
       setDeleteTarget(null)
-      closeModal()
+      closePanel()
     } catch (e) {
       alert(e.message)
     } finally {
@@ -115,6 +116,8 @@ export default function SubjectAreasPage() {
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
   })
 
+  const detailOpen = panelMode != null
+
   return (
     <div className="split-page">
       <div className="split-page__header">
@@ -128,6 +131,7 @@ export default function SubjectAreasPage() {
       </div>
 
       <SplitView
+        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="상태"
@@ -174,35 +178,38 @@ export default function SubjectAreasPage() {
             </div>
           </div>
         )}
-      />
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '주제영역 등록' : '주제영역 수정'}
-          onClose={closeModal}
-          footer={(
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >
-                  삭제
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="주제영역을 선택하세요"
+            emptyHint="목록에서 주제영역을 클릭하면 상세 정보가 여기에 표시됩니다."
+            title={panelMode === 'create' ? '주제영역 등록' : (formValue.subject_area_nm || '주제영역 수정')}
+            subtitle={panelMode === 'edit' ? formValue.subject_area_id : '새 주제영역 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
                 </button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          )}
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <SubjectAreaForm value={formValue} onChange={setFormValue} isEdit={modalMode === 'edit'} />
-        </Modal>
-      )}
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <SubjectAreaForm value={formValue} onChange={setFormValue} isEdit={panelMode === 'edit'} />
+          </SplitDetail>
+        )}
+      />
 
       {deleteTarget && (
         <ConfirmDialog

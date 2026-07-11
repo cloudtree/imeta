@@ -3,10 +3,10 @@ import { useUsers } from '../../hooks/useUsers'
 import { usersApi } from '../../api/users'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import Pagination from '../../components/common/Pagination'
 import SearchBar from '../../components/common/SearchBar'
-import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import UserForm from './UserForm'
@@ -41,7 +41,7 @@ export default function UsersPage() {
 
   const { data, total, loading, error, create, update, remove, refetch } = useUsers(listParams)
 
-  const [modalMode, setModalMode] = useState(null)
+  const [panelMode, setPanelMode] = useState(null)
   const [formValue, setFormValue] = useState(UserForm.EMPTY)
   const [selectedRow, setSelectedRow] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -57,7 +57,7 @@ export default function UsersPage() {
     setSelectedRow(null)
     setFormValue(UserForm.EMPTY)
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEdit = (row) => {
@@ -71,11 +71,11 @@ export default function UsersPage() {
       dept_nm: row.dept_nm ?? '',
     })
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRow(null)
     setFormError(null)
   }
@@ -112,19 +112,28 @@ export default function UsersPage() {
   }
 
   const handleSave = async () => {
-    const isEdit = modalMode === 'edit'
+    const isEdit = panelMode === 'edit'
     const err = validate(formValue, isEdit)
     if (err) { setFormError(err); return }
     setSaving(true)
     setFormError(null)
     try {
       const payload = toPayload(formValue)
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await create(payload)
+        closePanel()
       } else {
-        await update(selectedRow.user_id, payload)
+        const updated = await update(selectedRow.user_id, payload)
+        setSelectedRow(updated)
+        setFormValue({
+          ...UserForm.EMPTY,
+          ...updated,
+          password: '',
+          password_confirm: '',
+          email_nm: updated.email_nm ?? '',
+          dept_nm: updated.dept_nm ?? '',
+        })
       }
-      closeModal()
     } catch (e) {
       setFormError(e.message)
     } finally {
@@ -137,7 +146,7 @@ export default function UsersPage() {
     try {
       await remove(deleteTarget.user_id)
       setDeleteTarget(null)
-      closeModal()
+      closePanel()
     } catch (e) {
       alert(e.message)
     } finally {
@@ -152,7 +161,7 @@ export default function UsersPage() {
     try {
       await Promise.all([...selected].map((id) => usersApi.delete(id)))
       setSelected(new Set())
-      if (selectedRow && selected.has(selectedRow.user_id)) closeModal()
+      if (selectedRow && selected.has(selectedRow.user_id)) closePanel()
       await refetch()
     } catch (e) {
       alert(e.message)
@@ -169,7 +178,7 @@ export default function UsersPage() {
       setShowDeleteAll(false)
       setSelected(new Set())
       setPage(1)
-      closeModal()
+      closePanel()
       await refetch()
     } catch (e) {
       alert(e.message)
@@ -187,6 +196,8 @@ export default function UsersPage() {
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
   })
+
+  const detailOpen = panelMode != null
 
   return (
     <div className="split-page">
@@ -216,6 +227,7 @@ export default function UsersPage() {
       </div>
 
       <SplitView
+        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="필터"
@@ -282,35 +294,38 @@ export default function UsersPage() {
             </div>
           </div>
         )}
-      />
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '사용자 등록' : '사용자 수정'}
-          onClose={closeModal}
-          footer={(
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRow); closeModal() }}
-                >
-                  삭제
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="사용자를 선택하세요"
+            emptyHint="목록에서 사용자를 클릭하면 상세 정보가 여기에 표시됩니다. 새 사용자는 우측 상단에서 등록할 수 있습니다."
+            title={panelMode === 'create' ? '사용자 등록' : (formValue.user_nm || '사용자 수정')}
+            subtitle={panelMode === 'edit' ? formValue.login_id : '새 계정 입력'}
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRow)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
                 </button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          )}
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <UserForm value={formValue} onChange={setFormValue} isEdit={modalMode === 'edit'} />
-        </Modal>
-      )}
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <UserForm value={formValue} onChange={setFormValue} isEdit={panelMode === 'edit'} />
+          </SplitDetail>
+        )}
+      />
 
       {deleteTarget && (
         <ConfirmDialog

@@ -3,6 +3,7 @@ import { metaSystemsApi } from '../../api/metaSystems'
 import { namingRulesApi } from '../../api/namingRules'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
+import SplitDetail from '../../components/common/SplitDetail'
 import MetaList from '../../components/common/MetaList'
 import SearchBar from '../../components/common/SearchBar'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
@@ -28,7 +29,7 @@ export default function DataObjectsPage() {
   const [rulesLoading, setRulesLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const [modalMode, setModalMode] = useState(null) // null | 'create' | 'edit'
+  const [panelMode, setPanelMode] = useState(null) // null | 'create' | 'edit'
   const [formValue, setFormValue] = useState(EMPTY_RULE)
   const [selectedRule, setSelectedRule] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -96,18 +97,18 @@ export default function DataObjectsPage() {
       sort_ord: (rules[rules.length - 1]?.sort_ord ?? 0) + 10,
     })
     setFormError(null)
-    setModalMode('create')
+    setPanelMode('create')
   }
 
   const openEditRule = (row) => {
     setSelectedRule(row)
     setFormValue(ruleToForm(row))
     setFormError(null)
-    setModalMode('edit')
+    setPanelMode('edit')
   }
 
-  const closeModal = () => {
-    setModalMode(null)
+  const closePanel = () => {
+    setPanelMode(null)
     setSelectedRule(null)
     setFormError(null)
   }
@@ -119,12 +120,14 @@ export default function DataObjectsPage() {
     setFormError(null)
     try {
       const payload = formToPayload(formValue)
-      if (modalMode === 'create') {
+      if (panelMode === 'create') {
         await namingRulesApi.create(payload)
+        closePanel()
       } else {
-        await namingRulesApi.update(selectedRule.naming_rule_id, payload)
+        const updated = await namingRulesApi.update(selectedRule.naming_rule_id, payload)
+        setSelectedRule(updated)
+        setFormValue(ruleToForm(updated))
       }
-      closeModal()
       await loadRules()
       await loadSystems()
     } catch (e) {
@@ -139,7 +142,7 @@ export default function DataObjectsPage() {
     try {
       await namingRulesApi.delete(deleteTarget.naming_rule_id)
       setDeleteTarget(null)
-      closeModal()
+      closePanel()
       await loadRules()
       await loadSystems()
     } catch (e) {
@@ -185,7 +188,7 @@ export default function DataObjectsPage() {
         setSystemModal(null)
         await loadSystems()
         setSelectedSystemId(String(created.system_id))
-        closeModal()
+        closePanel()
       } else {
         await metaSystemsApi.update(selectedSystem.system_id, {
           system_cd: systemForm.system_cd.trim().toUpperCase(),
@@ -208,7 +211,7 @@ export default function DataObjectsPage() {
     try {
       await metaSystemsApi.delete(deleteSystem.system_id)
       setDeleteSystem(null)
-      closeModal()
+      closePanel()
       await loadSystems()
     } catch (e) {
       alert(e.message)
@@ -225,6 +228,8 @@ export default function DataObjectsPage() {
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
   })
+
+  const detailOpen = panelMode != null
 
   return (
     <div className="split-page">
@@ -256,6 +261,7 @@ export default function DataObjectsPage() {
       </div>
 
       <SplitView
+        detailOpen={detailOpen}
         left={(
           <SplitNav
             title="시스템"
@@ -276,7 +282,7 @@ export default function DataObjectsPage() {
                 onSelect: (id) => {
                   setSelectedSystemId(id)
                   setTypeFilter('')
-                  closeModal()
+                  closePanel()
                 },
               },
               {
@@ -336,59 +342,65 @@ export default function DataObjectsPage() {
             </div>
           </div>
         )}
-      />
-
-      {modalMode && (
-        <Modal
-          title={modalMode === 'create' ? '명명규칙 등록' : '명명규칙 수정'}
-          onClose={closeModal}
-          wide
-          footer={(
-            <>
-              {modalMode === 'edit' && (
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ marginRight: 'auto' }}
-                  onClick={() => { setDeleteTarget(selectedRule); closeModal() }}
-                >
-                  삭제
+        right={(
+          <SplitDetail
+            empty={!detailOpen}
+            emptyTitle="명명규칙을 선택하세요"
+            emptyHint="좌측에서 시스템을 고른 뒤, 중앙 목록에서 규칙을 클릭하면 상세를 수정할 수 있습니다."
+            title={panelMode === 'create' ? '명명규칙 등록' : (formValue.rule_title_nm || '명명규칙 수정')}
+            subtitle={
+              panelMode === 'edit'
+                ? (OBJECT_TYPE_LABEL[formValue.object_type_nm] || formValue.object_type_nm)
+                : selectedSystem?.system_nm
+            }
+            onClose={closePanel}
+            footer={(
+              <>
+                {panelMode === 'edit' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ marginRight: 'auto' }}
+                    onClick={() => setDeleteTarget(selectedRule)}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={closePanel} disabled={saving}>닫기</button>
+                <button className="btn btn-primary" onClick={handleSaveRule} disabled={saving}>
+                  {saving ? <span className="spinner" /> : null}
+                  {panelMode === 'create' ? '등록' : '저장'}
                 </button>
-              )}
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>취소</button>
-              <button className="btn btn-primary" onClick={handleSaveRule} disabled={saving}>
-                {saving ? <span className="spinner" /> : null}
-                {modalMode === 'create' ? '등록' : '저장'}
-              </button>
-            </>
-          )}
-        >
-          {formError && <div className="alert alert-error">{formError}</div>}
-          <NamingRuleForm
-            value={formValue}
-            onChange={setFormValue}
-            systems={systems}
-            lockSystem={modalMode === 'create' && !!selectedSystemId}
-          />
-          {modalMode === 'edit' && selectedRule && (
-            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e5ea' }}>
-              <div className="form-label">미리보기</div>
-              <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.55 }}>
-                <div><strong>형식</strong> {formValue.format_pattern_nm || '-'}</div>
-                {(formValue.parts || []).map((p, i) => (
-                  <div key={i} style={{ marginTop: 6 }}>
-                    <strong>{p.code}</strong> {p.name}
-                    <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-                      {String(p.rulesText || '').split('\n').filter(Boolean).map((line, j) => (
-                        <li key={j}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+              </>
+            )}
+          >
+            {formError && <div className="alert alert-error">{formError}</div>}
+            <NamingRuleForm
+              value={formValue}
+              onChange={setFormValue}
+              systems={systems}
+              lockSystem={panelMode === 'create' && !!selectedSystemId}
+            />
+            {panelMode === 'edit' && selectedRule && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e5ea' }}>
+                <div className="form-label">미리보기</div>
+                <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.55 }}>
+                  <div><strong>형식</strong> {formValue.format_pattern_nm || '-'}</div>
+                  {(formValue.parts || []).map((p, i) => (
+                    <div key={i} style={{ marginTop: 6 }}>
+                      <strong>{p.code}</strong> {p.name}
+                      <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                        {String(p.rulesText || '').split('\n').filter(Boolean).map((line, j) => (
+                          <li key={j}>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </Modal>
-      )}
+            )}
+          </SplitDetail>
+        )}
+      />
 
       {systemModal && (
         <Modal
