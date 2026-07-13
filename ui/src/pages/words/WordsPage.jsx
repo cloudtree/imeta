@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useWords } from '../../hooks/useWords'
 import { wordsApi } from '../../api/words'
-import { useSubjectAreaNav } from '../../hooks/useSubjectAreaNav'
+import { useSubjectAreaNav, parseSubjectNavFilter } from '../../hooks/useSubjectAreaNav'
 import SplitView from '../../components/common/SplitView'
 import SplitNav from '../../components/common/SplitNav'
 import SplitDetail from '../../components/common/SplitDetail'
@@ -53,7 +53,7 @@ export default function WordsPage() {
   const listParams = useMemo(() => ({
     page,
     limit: PAGE_SIZE,
-    ...(subjectFilter ? { subject_area_id: subjectFilter } : {}),
+    ...parseSubjectNavFilter(subjectFilter),
     ...(search.trim() ? { search: search.trim() } : {}),
   }), [page, subjectFilter, search])
 
