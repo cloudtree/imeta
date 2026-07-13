@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setUsername('')
+    setLoginId('')
     setPassword('')
     setError('')
     setFormOpen(false)
@@ -52,7 +52,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(loginId.trim(), password)
-      setUsername('')
+      setLoginId('')
       setPassword('')
       navigate(from, { replace: true })
     } catch (err) {
