@@ -14,6 +14,7 @@ import usersRouter from './routes/users.js'
 import dataObjectsRouter from './routes/dataObjects.js'
 import metaSystemsRouter from './routes/metaSystems.js'
 import namingRulesRouter from './routes/namingRules.js'
+import tuningRouter from './routes/tuning.js'
 import { requireAuth, requireAdmin } from './middleware/requireAuth.js'
 import { migrateDomainsDataLength } from './migrateDataLength.js'
 import { migrateUsers } from './migrateUsers.js'
@@ -58,6 +59,7 @@ app.use('/api/users', requireAdmin, usersRouter)
 app.use('/api/data-objects', requireAdmin, dataObjectsRouter)
 app.use('/api/meta-systems', metaSystemsRouter)
 app.use('/api/naming-rules', requireAdmin, namingRulesRouter)
+app.use('/api/tuning', tuningRouter)
 
 app.use((err, _req, res, _next) => {
   if (err.type === 'entity.too.large') {

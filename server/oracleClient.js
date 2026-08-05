@@ -1,0 +1,38 @@
+const CONNECT_TIMEOUT_SEC = 10
+
+let oracledbPromise = null
+
+async function loadOracledb() {
+  if (!oracledbPromise) {
+    oracledbPromise = import('oracledb').then((m) => {
+      const oracledb = m.default
+      oracledb.fetchAsString = [oracledb.CLOB]
+      return oracledb
+    })
+  }
+  return oracledbPromise
+}
+
+export async function withOracleConnection(server, fn) {
+  const oracledb = await loadOracledb()
+  const connection = await oracledb.getConnection({
+    user: server.user_nm?.trim(),
+    password: server.password_val,
+    connectString: `${server.host_nm?.trim()}:${Number(server.port_no) || 1521}/${server.database_nm?.trim()}`,
+    connectTimeout: CONNECT_TIMEOUT_SEC,
+  })
+  try {
+    return await fn(connection, oracledb)
+  } finally {
+    await connection.close().catch(() => {})
+  }
+}
+
+export async function queryRows(connection, sql, binds = {}) {
+  const oracledb = await loadOracledb()
+  const result = await connection.execute(sql, binds, {
+    outFormat: oracledb.OUT_FORMAT_OBJECT,
+    maxRows: 5000,
+  })
+  return result.rows ?? []
+}

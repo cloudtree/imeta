@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
-import { testPgConnection } from '../dbConnectionTest.js'
+import { testDbConnection } from '../dbConnectionTest.js'
 import { withDbServerClient } from '../dbClient.js'
 import {
   fetchUserTables,
@@ -11,14 +11,17 @@ import {
 const router = Router()
 
 const LIST_COLUMNS = `
-  db_server_id, db_server_nm, host_nm, port_no, database_nm, user_nm,
-  ssl_yn, db_server_desc, use_yn, last_test_dtm, last_test_yn,
+  db_server_id, db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm,
+  ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn, last_test_dtm, last_test_yn,
   reg_dtm, upd_dtm
 `
+
+const DB_TYPES = ['POSTGRES', 'ORACLE']
 
 function validateServerBody(body, { requirePassword = true } = {}) {
   const {
     db_server_nm,
+    db_type_nm = 'POSTGRES',
     host_nm,
     port_no = 5432,
     database_nm,
@@ -30,6 +33,9 @@ function validateServerBody(body, { requirePassword = true } = {}) {
   } = body
 
   if (!db_server_nm?.trim()) return '서버명은 필수입니다.'
+  if (db_type_nm && !DB_TYPES.includes(String(db_type_nm).toUpperCase())) {
+    return `DB 종류는 ${DB_TYPES.join(', ')} 중 하나여야 합니다.`
+  }
   if (!host_nm?.trim()) return '호스트는 필수입니다.'
   if (!database_nm?.trim()) return '데이터베이스명은 필수입니다.'
   if (!user_nm?.trim()) return '사용자명은 필수입니다.'
@@ -45,6 +51,12 @@ function validateServerBody(body, { requirePassword = true } = {}) {
   }
   if (use_yn && !['Y', 'N'].includes(use_yn)) {
     return '사용 여부는 Y 또는 N이어야 합니다.'
+  }
+  if (body.diag_pack_yn && !['Y', 'N'].includes(body.diag_pack_yn)) {
+    return 'Diagnostics Pack 사용 여부는 Y 또는 N이어야 합니다.'
+  }
+  if (body.tuning_pack_yn && !['Y', 'N'].includes(body.tuning_pack_yn)) {
+    return 'Tuning Pack 사용 여부는 Y 또는 N이어야 합니다.'
   }
 
   return null
@@ -104,12 +116,20 @@ router.get('/', async (req, res) => {
 
 async function getServerCredentials(id) {
   const { rows } = await pool.query(
-    `SELECT db_server_id, db_server_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, use_yn
+    `SELECT db_server_id, db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, use_yn
      FROM meta_db_server_m
      WHERE db_server_id = $1`,
     [id],
   )
   return rows[0] ?? null
+}
+
+function assertPostgres(server, res) {
+  if ((server.db_type_nm || 'POSTGRES').toUpperCase() !== 'POSTGRES') {
+    res.status(400).json({ message: '스키마 수집은 현재 PostgreSQL 서버만 지원합니다.' })
+    return false
+  }
+  return true
 }
 
 // POST /api/db-servers/test
@@ -118,7 +138,7 @@ router.post('/test', async (req, res) => {
     const validationError = validateServerBody(req.body, { requirePassword: true })
     if (validationError) return res.status(400).json({ message: validationError })
 
-    const result = await testPgConnection(req.body)
+    const result = await testDbConnection(req.body)
     res.json(result)
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -130,6 +150,7 @@ router.get('/:id/schema/tables/:schema/:table', async (req, res) => {
   try {
     const server = await getServerCredentials(req.params.id)
     if (!server) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
+    if (!assertPostgres(server, res)) return
 
     const definition = await withDbServerClient(server, (client) =>
       fetchTableDefinition(client, req.params.schema, req.params.table, {
@@ -159,6 +180,7 @@ router.get('/:id/schema/definitions', async (req, res) => {
   try {
     const server = await getServerCredentials(req.params.id)
     if (!server) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
+    if (!assertPostgres(server, res)) return
 
     const items = await withDbServerClient(server, (client) =>
       fetchSchemaDefinitionRows(client, { dbType: 'PostgreSQL' }),
@@ -184,6 +206,7 @@ router.get('/:id/schema/tables', async (req, res) => {
   try {
     const server = await getServerCredentials(req.params.id)
     if (!server) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
+    if (!assertPostgres(server, res)) return
 
     const tables = await withDbServerClient(server, fetchUserTables)
 
@@ -219,12 +242,12 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/test', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT db_server_id, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn FROM meta_db_server_m WHERE db_server_id = $1',
+      'SELECT db_server_id, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn FROM meta_db_server_m WHERE db_server_id = $1',
       [req.params.id],
     )
     if (!rows.length) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
 
-    const result = await testPgConnection(rows[0])
+    const result = await testDbConnection(rows[0])
     await updateTestResult(rows[0].db_server_id, result.ok)
     res.json(result)
   } catch (err) {
@@ -240,6 +263,7 @@ router.post('/', async (req, res) => {
 
     const {
       db_server_nm,
+      db_type_nm = 'POSTGRES',
       host_nm,
       port_no = 5432,
       database_nm,
@@ -248,6 +272,8 @@ router.post('/', async (req, res) => {
       ssl_yn = 'Y',
       db_server_desc,
       use_yn = 'Y',
+      diag_pack_yn = 'N',
+      tuning_pack_yn = 'N',
     } = req.body
 
     const dup = await pool.query('SELECT 1 FROM meta_db_server_m WHERE db_server_nm = $1', [db_server_nm.trim()])
@@ -257,11 +283,12 @@ router.post('/', async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO meta_db_server_m
-         (db_server_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, db_server_desc, use_yn)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING ${LIST_COLUMNS}`,
       [
         db_server_nm.trim(),
+        String(db_type_nm).toUpperCase(),
         host_nm.trim(),
         Number(port_no),
         database_nm.trim(),
@@ -270,6 +297,8 @@ router.post('/', async (req, res) => {
         ssl_yn,
         db_server_desc ?? null,
         use_yn,
+        diag_pack_yn,
+        tuning_pack_yn,
       ],
     )
     res.status(201).json(rows[0])
@@ -289,6 +318,7 @@ router.put('/:id', async (req, res) => {
 
     const {
       db_server_nm,
+      db_type_nm = 'POSTGRES',
       host_nm,
       port_no = 5432,
       database_nm,
@@ -314,6 +344,7 @@ router.put('/:id', async (req, res) => {
 
     const fields = {
       db_server_nm: db_server_nm.trim(),
+      db_type_nm: String(db_type_nm).toUpperCase(),
       host_nm: host_nm.trim(),
       port_no: Number(port_no),
       database_nm: database_nm.trim(),
@@ -321,6 +352,8 @@ router.put('/:id', async (req, res) => {
       ssl_yn,
       db_server_desc: db_server_desc ?? null,
       use_yn: use_yn ?? 'Y',
+      diag_pack_yn: req.body.diag_pack_yn ?? 'N',
+      tuning_pack_yn: req.body.tuning_pack_yn ?? 'N',
     }
     if (password_val) fields.password_val = password_val
 

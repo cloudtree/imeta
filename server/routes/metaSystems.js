@@ -74,9 +74,9 @@ router.post('/', async (req, res) => {
       if (ent.rows[0]) {
         await client.query(
           `INSERT INTO meta_naming_rule_m
-             (system_id, section_cd, object_type_nm, rule_title_nm, format_pattern_nm,
+             (system_id, rule_title_nm, format_pattern_nm,
               parts_json, examples_json, rule_desc, sort_ord, use_yn)
-           SELECT $1, section_cd, object_type_nm, rule_title_nm, format_pattern_nm,
+           SELECT $1, rule_title_nm, format_pattern_nm,
                   parts_json, examples_json, rule_desc, sort_ord, use_yn
            FROM meta_naming_rule_m
            WHERE system_id = $2`,
@@ -86,13 +86,11 @@ router.post('/', async (req, res) => {
         for (const rule of NAMING_RULE_SEED) {
           await client.query(
             `INSERT INTO meta_naming_rule_m
-               (system_id, section_cd, object_type_nm, rule_title_nm, format_pattern_nm,
+               (system_id, rule_title_nm, format_pattern_nm,
                 parts_json, examples_json, rule_desc, sort_ord, use_yn)
-             VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, 'Y')`,
+             VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, 'Y')`,
             [
               system.system_id,
-              rule.section_cd,
-              rule.object_type,
               rule.title,
               rule.format_pattern,
               JSON.stringify(rule.parts),

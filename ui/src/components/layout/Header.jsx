@@ -32,6 +32,7 @@ const NAV_MENUS = [
         label: '테이블정의서검토',
         desc: '정의서 표준 검토',
       },
+      { to: '/database/tuning', label: '튜닝', desc: 'SQL 튜닝 분석·Top SQL' },
     ],
   },
   {

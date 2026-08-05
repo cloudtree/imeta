@@ -127,8 +127,6 @@ export const COLUMN_RENAME = {
   meta_naming_rules: {
     rule_id: 'naming_rule_id',
     system_id: 'system_id',
-    section_cd: 'section_cd',
-    object_type: 'object_type_nm',
     title: 'rule_title_nm',
     format_pattern: 'format_pattern_nm',
     parts_json: 'parts_json',
