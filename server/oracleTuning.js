@@ -1,5 +1,98 @@
 import { queryRows } from './oracleClient.js'
 
+/** EXPLAIN PLAN용 PLAN_TABLE (접속 사용자 스키마) — 없으면 생성 */
+export async function ensurePlanTable(connection) {
+  const exists = await queryRows(
+    connection,
+    `SELECT table_name FROM user_tables WHERE table_name = 'PLAN_TABLE'`,
+  )
+  if (exists.length) {
+    return { created: false, message: 'PLAN_TABLE already exists' }
+  }
+
+  // Oracle 표준 utlxplan.sql 호환 DDL (12c+)
+  await connection.execute(`
+    CREATE TABLE PLAN_TABLE (
+      statement_id       VARCHAR2(30),
+      plan_id            NUMBER,
+      timestamp          DATE,
+      remarks            VARCHAR2(4000),
+      operation          VARCHAR2(30),
+      options            VARCHAR2(255),
+      object_node        VARCHAR2(128),
+      object_owner       VARCHAR2(128),
+      object_name        VARCHAR2(128),
+      object_alias       VARCHAR2(261),
+      object_instance    NUMBER,
+      object_type        VARCHAR2(30),
+      optimizer          VARCHAR2(255),
+      search_columns     NUMBER,
+      id                 NUMBER,
+      parent_id          NUMBER,
+      depth              NUMBER,
+      position           NUMBER,
+      cost               NUMBER,
+      cardinality        NUMBER,
+      bytes              NUMBER,
+      other_tag          VARCHAR2(255),
+      partition_start    VARCHAR2(255),
+      partition_stop     VARCHAR2(255),
+      partition_id       NUMBER,
+      other              LONG,
+      other_xml          CLOB,
+      distribution       VARCHAR2(30),
+      cpu_cost           NUMBER,
+      io_cost            NUMBER,
+      temp_space         NUMBER,
+      access_predicates  VARCHAR2(4000),
+      filter_predicates  VARCHAR2(4000),
+      projection         VARCHAR2(4000),
+      time               NUMBER,
+      qblock_name        VARCHAR2(128)
+    )`)
+
+  return { created: true, message: 'PLAN_TABLE created' }
+}
+
+/**
+ * 접속 사용자 스키마의 사용자 테이블 통계 수집
+ * (ORDERS/ORDER_ITEMS 등 의도적 미수집 대상은 skip 가능)
+ */
+export async function gatherUserTableStats(connection, { skipTables = [] } = {}) {
+  const skip = new Set(skipTables.map((t) => String(t).toUpperCase()))
+  const tables = await queryRows(
+    connection,
+    `SELECT table_name FROM user_tables
+     WHERE temporary = 'N'
+       AND table_name NOT IN ('PLAN_TABLE')
+     ORDER BY table_name`,
+  )
+
+  const gathered = []
+  const skipped = []
+  for (const row of tables) {
+    const name = row.TABLE_NAME
+    if (skip.has(name)) {
+      skipped.push(name)
+      continue
+    }
+    await connection.execute(
+      `BEGIN
+         DBMS_STATS.GATHER_TABLE_STATS(
+           ownname => USER,
+           tabname => :t,
+           cascade => TRUE,
+           estimate_percent => DBMS_STATS.AUTO_SAMPLE_SIZE,
+           method_opt => 'FOR ALL COLUMNS SIZE AUTO'
+         );
+       END;`,
+      { t: name },
+    )
+    gathered.push(name)
+  }
+  return { gathered, skipped, total: tables.length }
+}
+
 /** 분석 대상 스키마 전환 (ALTER SESSION SET CURRENT_SCHEMA) */
 export async function setCurrentSchema(connection, schema) {
   const name = String(schema ?? '').trim().toUpperCase()
@@ -123,12 +216,30 @@ export async function collectDictionary(connection, tableRefs) {
   return { tables: resolvedTables, columns, indexes, indexColumns, constraints, statistics }
 }
 
+let explainSeq = 0
+
 /** EXPLAIN PLAN 실행 + DBMS_XPLAN.DISPLAY 텍스트 + PLAN_TABLE 구조 행 반환 */
 export async function getExplainPlan(connection, sqlText) {
-  const statementId = `IMETA_${Date.now().toString(36).toUpperCase()}`
+  // PLAN_TABLE 없으면 생성 (ORA-02404 등 방지)
+  await ensurePlanTable(connection)
+
+  explainSeq = (explainSeq + 1) % 1_000_000
+  const statementId = `IMETA_${Date.now().toString(36).toUpperCase()}_${explainSeq}`
   const sanitized = String(sqlText).trim().replace(/;+\s*$/, '')
 
-  await connection.execute(`EXPLAIN PLAN SET STATEMENT_ID = '${statementId}' FOR ${sanitized}`)
+  // node-oracledb가 :bind 를 바인드 플레이스홀더로 해석하므로 더미 값을 넘긴다.
+  // EXPLAIN PLAN은 실행하지 않으므로 값은 옵티마이저 추정에만 영향을 준다.
+  const bindNames = new Set()
+  const withoutLiterals = sanitized.replace(/'[^']*'/g, "''")
+  const bindRe = /:([A-Za-z][A-Za-z0-9_]*)/g
+  let bm
+  while ((bm = bindRe.exec(withoutLiterals))) bindNames.add(bm[1])
+  const binds = Object.fromEntries([...bindNames].map((name) => [name, null]))
+
+  await connection.execute(
+    `EXPLAIN PLAN SET STATEMENT_ID = '${statementId}' FOR ${sanitized}`,
+    binds,
+  )
 
   try {
     const textRows = await queryRows(
@@ -161,12 +272,42 @@ export async function getExplainPlan(connection, sqlText) {
     return {
       text: textRows.map((r) => r.PLAN_TABLE_OUTPUT).join('\n'),
       rows,
+      root_cost: rows[0]?.COST ?? null,
+      root_cardinality: rows[0]?.CARDINALITY ?? null,
     }
   } finally {
     await connection
       .execute('DELETE FROM plan_table WHERE statement_id = :sid', { sid: statementId })
       .then(() => connection.commit())
       .catch(() => {})
+  }
+}
+
+/** 튜닝 전/후 실행계획 요약 비교 */
+export function comparePlans(before, after) {
+  if (!before?.rows?.length || !after?.rows?.length) return null
+  const beforeCost = Number(before.rows[0]?.COST ?? 0)
+  const afterCost = Number(after.rows[0]?.COST ?? 0)
+  const beforeCard = Number(before.rows[0]?.CARDINALITY ?? 0)
+  const afterCard = Number(after.rows[0]?.CARDINALITY ?? 0)
+  const beforeFull = before.rows.filter(
+    (r) => r.OPERATION === 'TABLE ACCESS' && String(r.OPTIONS ?? '').includes('FULL'),
+  ).length
+  const afterFull = after.rows.filter(
+    (r) => r.OPERATION === 'TABLE ACCESS' && String(r.OPTIONS ?? '').includes('FULL'),
+  ).length
+  const costDelta = afterCost - beforeCost
+  const costRatio = beforeCost > 0 ? afterCost / beforeCost : null
+  return {
+    before_cost: beforeCost,
+    after_cost: afterCost,
+    cost_delta: costDelta,
+    cost_ratio: costRatio,
+    improved: costDelta < 0,
+    before_cardinality: beforeCard,
+    after_cardinality: afterCard,
+    before_full_scans: beforeFull,
+    after_full_scans: afterFull,
   }
 }
 

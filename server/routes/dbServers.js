@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { testDbConnection } from '../dbConnectionTest.js'
 import { withDbServerClient } from '../dbClient.js'
+import { normalizeOraPrivilege } from '../oracleConnectOptions.js'
 import {
   fetchUserTables,
   fetchTableDefinition,
@@ -12,11 +13,12 @@ const router = Router()
 
 const LIST_COLUMNS = `
   db_server_id, db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm,
-  ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn, last_test_dtm, last_test_yn,
-  reg_dtm, upd_dtm
+  ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn, ora_privilege_cd,
+  last_test_dtm, last_test_yn, reg_dtm, upd_dtm
 `
 
 const DB_TYPES = ['POSTGRES', 'ORACLE']
+const ORA_PRIVILEGES = ['NORMAL', 'SYSDBA', 'SYSOPER']
 
 function validateServerBody(body, { requirePassword = true } = {}) {
   const {
@@ -57,6 +59,9 @@ function validateServerBody(body, { requirePassword = true } = {}) {
   }
   if (body.tuning_pack_yn && !['Y', 'N'].includes(body.tuning_pack_yn)) {
     return 'Tuning Pack 사용 여부는 Y 또는 N이어야 합니다.'
+  }
+  if (body.ora_privilege_cd && !ORA_PRIVILEGES.includes(String(body.ora_privilege_cd).toUpperCase())) {
+    return `Oracle 접속 권한은 ${ORA_PRIVILEGES.join(', ')} 중 하나여야 합니다.`
   }
 
   return null
@@ -116,7 +121,7 @@ router.get('/', async (req, res) => {
 
 async function getServerCredentials(id) {
   const { rows } = await pool.query(
-    `SELECT db_server_id, db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, use_yn
+    `SELECT db_server_id, db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, use_yn, ora_privilege_cd
      FROM meta_db_server_m
      WHERE db_server_id = $1`,
     [id],
@@ -242,7 +247,7 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/test', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT db_server_id, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn FROM meta_db_server_m WHERE db_server_id = $1',
+      'SELECT db_server_id, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, ora_privilege_cd FROM meta_db_server_m WHERE db_server_id = $1',
       [req.params.id],
     )
     if (!rows.length) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
@@ -274,6 +279,7 @@ router.post('/', async (req, res) => {
       use_yn = 'Y',
       diag_pack_yn = 'N',
       tuning_pack_yn = 'N',
+      ora_privilege_cd = 'NORMAL',
     } = req.body
 
     const dup = await pool.query('SELECT 1 FROM meta_db_server_m WHERE db_server_nm = $1', [db_server_nm.trim()])
@@ -281,10 +287,14 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ message: `서버명 "${db_server_nm}"은(는) 이미 존재합니다.` })
     }
 
+    const privilege = String(db_type_nm).toUpperCase() === 'ORACLE'
+      ? normalizeOraPrivilege(ora_privilege_cd)
+      : 'NORMAL'
+
     const { rows } = await pool.query(
       `INSERT INTO meta_db_server_m
-         (db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         (db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, db_server_desc, use_yn, diag_pack_yn, tuning_pack_yn, ora_privilege_cd)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING ${LIST_COLUMNS}`,
       [
         db_server_nm.trim(),
@@ -299,6 +309,7 @@ router.post('/', async (req, res) => {
         use_yn,
         diag_pack_yn,
         tuning_pack_yn,
+        privilege,
       ],
     )
     res.status(201).json(rows[0])
@@ -354,6 +365,9 @@ router.put('/:id', async (req, res) => {
       use_yn: use_yn ?? 'Y',
       diag_pack_yn: req.body.diag_pack_yn ?? 'N',
       tuning_pack_yn: req.body.tuning_pack_yn ?? 'N',
+      ora_privilege_cd: String(db_type_nm).toUpperCase() === 'ORACLE'
+        ? normalizeOraPrivilege(req.body.ora_privilege_cd)
+        : 'NORMAL',
     }
     if (password_val) fields.password_val = password_val
 

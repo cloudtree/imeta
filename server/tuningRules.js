@@ -9,6 +9,12 @@ const STALE_STATS_DAYS = 90
 const LARGE_TABLE_ROWS = 100_000
 const MEDIUM_TABLE_ROWS = 10_000
 
+// Oracle(VARCHAR2/CHAR/N...) + PostgreSQL(information_schema.columns.data_type, 대문자 정규화됨) 문자형
+const CHAR_TYPES = new Set([
+  'VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR',
+  'CHARACTER VARYING', 'CHARACTER', 'TEXT', 'VARCHAR', 'BPCHAR', 'NAME',
+])
+
 function stripLiteralsAndComments(sqlText) {
   return String(sqlText)
     .replace(/--.*$/gm, ' ')
@@ -101,7 +107,19 @@ function staticRules(sqlText) {
   return findings
 }
 
-function dictionaryRules(sqlText, dictionary) {
+function statsCommand(dbType, owner, tableName) {
+  if (dbType === 'POSTGRES') {
+    // Postgres 식별자는 대소문자 구분 없이 저장되면 소문자로 폴딩되므로,
+    // 딕셔너리 수집 시 대문자로 정규화한 이름을 실행 가능한 형태로 되돌린다.
+    const target = owner && owner.toUpperCase() !== 'PUBLIC'
+      ? `${owner.toLowerCase()}.${tableName.toLowerCase()}`
+      : tableName.toLowerCase()
+    return `ANALYZE ${target};`
+  }
+  return `EXEC DBMS_STATS.GATHER_TABLE_STATS('${owner}', '${tableName}');`
+}
+
+function dictionaryRules(sqlText, dictionary, dbType = 'ORACLE') {
   const findings = []
   const cleaned = stripLiteralsAndComments(sqlText)
   const predicateColumns = extractPredicateColumns(cleaned)
@@ -129,7 +147,7 @@ function dictionaryRules(sqlText, dictionary) {
   // D-01: 암시적 형변환 — 문자형 컬럼 = 숫자 리터럴
   for (const [tableName, cols] of columnsByTable) {
     for (const col of cols) {
-      if (!['VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR'].includes(col.DATA_TYPE)) continue
+      if (!CHAR_TYPES.has(col.DATA_TYPE)) continue
       const re = new RegExp(`\\b${col.COLUMN_NAME}\\s*(?:=|<>|!=|>=|<=|>|<|\\bIN\\b)\\s*\\(?\\s*\\d`, 'i')
       if (re.test(cleaned)) {
         findings.push(finding('D-01', 'error', 'DICTIONARY', '암시적 형변환 (문자 컬럼 = 숫자 리터럴)',
@@ -158,7 +176,11 @@ function dictionaryRules(sqlText, dictionary) {
             (table?.NUM_ROWS ? ` (테이블 행수: ${Number(table.NUM_ROWS).toLocaleString()})` : ''),
         `조건 컬럼: ${tableName}.${pc}`,
         anyIndex ? '자주 쓰는 조건이라면 선두 컬럼으로 하는 인덱스를 검토하세요.' : `CREATE INDEX ... ON ${tableName}(${pc}) 생성을 검토하세요.`,
-        { table: tableName, predicate_hint: `"${pc}"` }))
+        {
+          table: tableName,
+          predicate_hint: `"${pc}"`,
+          ddl: anyIndex ? undefined : `CREATE INDEX idx_${tableName.toLowerCase()}_${pc.toLowerCase()} ON ${tableName}(${pc});`,
+        }))
     }
   }
 
@@ -178,7 +200,10 @@ function dictionaryRules(sqlText, dictionary) {
         `${tableName}의 외래키 ${constraintName}(${fkCols.join(', ')})에 인덱스가 없습니다. 조인 성능 저하와 부모 테이블 갱신 시 자식 테이블 전체 잠금(TM Lock) 위험이 있습니다.`,
         `FK: ${constraintName} → 컬럼 ${fkCols.join(', ')}`,
         `CREATE INDEX ... ON ${tableName}(${fkCols.join(', ')}) 생성을 검토하세요.`,
-        { table: tableName }))
+        {
+          table: tableName,
+          ddl: `CREATE INDEX idx_${tableName.toLowerCase()}_${fkCols.join('_').toLowerCase()} ON ${tableName}(${fkCols.join(', ')});`,
+        }))
     }
   }
 
@@ -186,18 +211,19 @@ function dictionaryRules(sqlText, dictionary) {
   for (const t of dictionary.tables) {
     const staleFlag = dictionary.statistics.find((s) => s.TABLE_NAME === t.TABLE_NAME)?.STALE_STATS
     const age = daysSince(t.LAST_ANALYZED)
+    const cmd = statsCommand(dbType, t.OWNER, t.TABLE_NAME)
     if (!t.LAST_ANALYZED) {
       findings.push(finding('D-04', 'error', 'DICTIONARY', '옵티마이저 통계 미수집',
         `${t.TABLE_NAME} 테이블에 통계가 없습니다. 옵티마이저가 잘못된 실행계획을 선택할 가능성이 높습니다.`,
         `LAST_ANALYZED = NULL`,
-        `EXEC DBMS_STATS.GATHER_TABLE_STATS('${t.OWNER}', '${t.TABLE_NAME}') 실행을 권고합니다.`,
-        { table: t.TABLE_NAME }))
+        `${cmd} 실행을 권고합니다.`,
+        { table: t.TABLE_NAME, ddl: cmd }))
     } else if (staleFlag === 'YES' || (age !== null && age > STALE_STATS_DAYS)) {
       findings.push(finding('D-04', 'warning', 'DICTIONARY', '옵티마이저 통계 노후',
         `${t.TABLE_NAME} 통계가 ${age}일 전에 수집되었습니다${staleFlag === 'YES' ? ' (STALE_STATS=YES)' : ''}. 데이터 변화가 반영되지 않았을 수 있습니다.`,
         `LAST_ANALYZED = ${new Date(t.LAST_ANALYZED).toISOString().slice(0, 10)}`,
-        `DBMS_STATS.GATHER_TABLE_STATS 재수집을 검토하세요.`,
-        { table: t.TABLE_NAME }))
+        `${cmd} 재수집을 검토하세요.`,
+        { table: t.TABLE_NAME, ddl: cmd }))
     }
   }
 
@@ -304,10 +330,10 @@ export function annotatePlanNodes(findings, planRows) {
 }
 
 /** 전체 규칙 실행 → 심각도순 정렬된 findings */
-export function analyzeSql({ sqlText, dictionary, planRows }) {
+export function analyzeSql({ sqlText, dictionary, planRows, dbType = 'ORACLE' }) {
   const findings = [
     ...staticRules(sqlText),
-    ...dictionaryRules(sqlText, dictionary),
+    ...dictionaryRules(sqlText, dictionary, dbType),
     ...planRules(planRows, dictionary),
   ]
   const order = { error: 0, warning: 1, info: 2 }

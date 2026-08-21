@@ -11,6 +11,7 @@ const EMPTY = {
   use_yn: 'Y',
   diag_pack_yn: 'N',
   tuning_pack_yn: 'N',
+  ora_privilege_cd: 'NORMAL',
 }
 
 const DEFAULT_PORTS = { POSTGRES: 5432, ORACLE: 1521 }
@@ -27,6 +28,19 @@ export default function ServerForm({ value, onChange, isEdit = false, error = nu
     // 기존 종류의 기본 포트를 그대로 쓰고 있었다면 새 종류의 기본 포트로 변경
     if (!value.port_no || Object.values(DEFAULT_PORTS).includes(Number(value.port_no))) {
       next.port_no = DEFAULT_PORTS[db_type_nm] ?? value.port_no
+    }
+    if (db_type_nm !== 'ORACLE') next.ora_privilege_cd = 'NORMAL'
+    onChange(next)
+  }
+
+  const setUserNm = (e) => {
+    const user_nm = e.target.value
+    const next = { ...value, user_nm }
+    // SYS 계정은 일반 접속 불가(ORA-28009) → 자동으로 SYSDBA 제안
+    if (value.db_type_nm === 'ORACLE' && user_nm.trim().toLowerCase() === 'sys') {
+      if (!value.ora_privilege_cd || value.ora_privilege_cd === 'NORMAL') {
+        next.ora_privilege_cd = 'SYSDBA'
+      }
     }
     onChange(next)
   }
@@ -110,7 +124,7 @@ export default function ServerForm({ value, onChange, isEdit = false, error = nu
             className="form-control"
             value={value.database_nm}
             onChange={set('database_nm')}
-            placeholder={isOracle ? '예: XEPDB1, ORCLPDB1' : '예: metadata_db'}
+            placeholder={isOracle ? '예: ORCL, XEPDB1' : '예: metadata_db'}
             maxLength={100}
           />
         </div>
@@ -120,8 +134,8 @@ export default function ServerForm({ value, onChange, isEdit = false, error = nu
           <input
             className="form-control"
             value={value.user_nm}
-            onChange={set('user_nm')}
-            placeholder="예: postgres"
+            onChange={setUserNm}
+            placeholder={isOracle ? '예: sys, system, c##tunetest' : '예: postgres'}
             maxLength={100}
           />
         </div>
@@ -143,6 +157,34 @@ export default function ServerForm({ value, onChange, isEdit = false, error = nu
           )}
         </div>
 
+        {isOracle ? (
+          <div className="form-group">
+            <label className="form-label">Oracle 접속 권한</label>
+            <select
+              className="form-control"
+              value={value.ora_privilege_cd ?? 'NORMAL'}
+              onChange={set('ora_privilege_cd')}
+            >
+              <option value="NORMAL">NORMAL (일반)</option>
+              <option value="SYSDBA">SYSDBA (SYS 계정용)</option>
+              <option value="SYSOPER">SYSOPER</option>
+            </select>
+            <span className="form-hint">
+              SYS 계정은 NORMAL 접속 시 ORA-28009가 납니다. SYSDBA를 선택하세요.
+            </span>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label className="form-label">SSL 사용</label>
+            <select className="form-control" value={value.ssl_yn} onChange={set('ssl_yn')}>
+              <option value="Y">Y (사용)</option>
+              <option value="N">N (미사용)</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {isOracle && (
         <div className="form-group">
           <label className="form-label">SSL 사용</label>
           <select className="form-control" value={value.ssl_yn} onChange={set('ssl_yn')}>
@@ -150,7 +192,7 @@ export default function ServerForm({ value, onChange, isEdit = false, error = nu
             <option value="N">N (미사용)</option>
           </select>
         </div>
-      </div>
+      )}
 
       {isOracle && (
         <div

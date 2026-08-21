@@ -1,3 +1,5 @@
+import { buildOracleConnectOptions } from './oracleConnectOptions.js'
+
 const CONNECT_TIMEOUT_SEC = 10
 
 let oracledbPromise = null
@@ -15,12 +17,9 @@ async function loadOracledb() {
 
 export async function withOracleConnection(server, fn) {
   const oracledb = await loadOracledb()
-  const connection = await oracledb.getConnection({
-    user: server.user_nm?.trim(),
-    password: server.password_val,
-    connectString: `${server.host_nm?.trim()}:${Number(server.port_no) || 1521}/${server.database_nm?.trim()}`,
-    connectTimeout: CONNECT_TIMEOUT_SEC,
-  })
+  const connection = await oracledb.getConnection(
+    buildOracleConnectOptions(server, oracledb, { connectTimeout: CONNECT_TIMEOUT_SEC }),
+  )
   try {
     return await fn(connection, oracledb)
   } finally {

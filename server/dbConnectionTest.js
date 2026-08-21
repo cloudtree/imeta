@@ -1,5 +1,6 @@
 import pg from 'pg'
 import { resolveSslForHost } from './dbConfig.js'
+import { buildOracleConnectOptions, enhanceOracleError } from './oracleConnectOptions.js'
 
 const CONNECTION_TIMEOUT_MS = 10_000
 
@@ -12,13 +13,7 @@ function extractErrorCode(err) {
   return null
 }
 
-export async function testOracleConnection({
-  host_nm,
-  port_no = 1521,
-  database_nm,
-  user_nm,
-  password_val,
-}) {
+export async function testOracleConnection(server) {
   let oracledb
   try {
     oracledb = (await import('oracledb')).default
@@ -28,16 +23,19 @@ export async function testOracleConnection({
 
   let connection
   try {
-    connection = await oracledb.getConnection({
-      user: user_nm?.trim(),
-      password: password_val,
-      connectString: `${host_nm?.trim()}:${Number(port_no) || 1521}/${database_nm?.trim()}`,
-      connectTimeout: Math.floor(CONNECTION_TIMEOUT_MS / 1000),
-    })
+    connection = await oracledb.getConnection(
+      buildOracleConnectOptions(server, oracledb, {
+        connectTimeout: Math.floor(CONNECTION_TIMEOUT_MS / 1000),
+      }),
+    )
     await connection.execute('SELECT 1 FROM DUAL')
     return { ok: true, message: '접속되었습니다.' }
   } catch (err) {
-    return { ok: false, code: extractErrorCode(err), message: err.message || '데이터베이스 연결에 실패했습니다.' }
+    return {
+      ok: false,
+      code: extractErrorCode(err),
+      message: enhanceOracleError(err, server),
+    }
   } finally {
     await connection?.close().catch(() => {})
   }

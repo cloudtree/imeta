@@ -16,6 +16,7 @@
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
+    "sql-formatter": "^15.8.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

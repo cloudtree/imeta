@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dbServersApi } from '../../api/dbServers'
 import { tuningApi } from '../../api/tuning'
+import SqlHighlight, { formatTuningSql } from './SqlHighlight'
 import './TuningPage.css'
+import './SqlHighlight.css'
 
 const SEVERITY_META = {
   error: { label: '오류', className: 'tp-sev--error' },
@@ -15,6 +17,8 @@ const SOURCE_LABEL = {
   PLAN: '실행계획 분석',
   PACK: '옵션 팩',
 }
+
+const TUNABLE_DB_TYPES = ['ORACLE', 'POSTGRES']
 
 const TOP_SQL_METRICS = [
   { value: 'elapsed_time', label: '총 수행시간' },
@@ -52,7 +56,7 @@ export default function TuningPage() {
 
   const [sqlText, setSqlText] = useState('')
   const [schemaName, setSchemaName] = useState('')
-  const [useLlm, setUseLlm] = useState(false)
+  const [useLlm, setUseLlm] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState(null)
   const [report, setReport] = useState(null)
@@ -68,9 +72,9 @@ export default function TuningPage() {
     dbServersApi
       .getAll({ use_yn: 'Y', limit: 200 })
       .then((res) => {
-        const oracle = (res.items ?? []).filter((s) => s.db_type_nm === 'ORACLE')
-        setServers(oracle)
-        if (oracle.length) setServerId(String(oracle[0].db_server_id))
+        const tunable = (res.items ?? []).filter((s) => TUNABLE_DB_TYPES.includes(s.db_type_nm))
+        setServers(tunable)
+        if (tunable.length) setServerId(String(tunable[0].db_server_id))
       })
       .catch((e) => setServersError(e.message))
   }, [])
@@ -79,6 +83,11 @@ export default function TuningPage() {
     () => servers.find((s) => String(s.db_server_id) === String(serverId)) ?? null,
     [servers, serverId],
   )
+  const isOracleSelected = selectedServer?.db_type_nm === 'ORACLE'
+
+  useEffect(() => {
+    if (tab === 'top' && selectedServer && !isOracleSelected) setTab('analyze')
+  }, [tab, selectedServer, isOracleSelected])
 
   useEffect(() => {
     if (source === 'awr' && selectedServer?.diag_pack_yn !== 'Y') setSource('cursor')
@@ -86,7 +95,7 @@ export default function TuningPage() {
 
   const handleAnalyze = useCallback(async (overrideSql) => {
     const text = (overrideSql ?? sqlText).trim()
-    if (!serverId) { setAnalyzeError('대상 Oracle 서버를 선택하세요.'); return }
+    if (!serverId) { setAnalyzeError('대상 서버를 선택하세요.'); return }
     if (!text) { setAnalyzeError('분석할 SQL을 입력하세요.'); return }
 
     setAnalyzing(true)
@@ -109,6 +118,7 @@ export default function TuningPage() {
 
   const handleLoadTopSql = useCallback(async () => {
     if (!serverId) { setTopError('대상 Oracle 서버를 선택하세요.'); return }
+    if (!isOracleSelected) { setTopError('Top SQL 조회는 Oracle 서버만 지원합니다.'); return }
     setLoadingTop(true)
     setTopError(null)
     try {
@@ -140,7 +150,7 @@ export default function TuningPage() {
         <div>
           <h1 className="page-title">튜닝</h1>
           <p className="page-subtitle">
-            Oracle 딕셔너리·실행계획 기반 SQL 튜닝 분석과 성능 Top SQL 추출 (전 기능 폐쇄망 내 동작)
+            딕셔너리·실행계획 기반 SQL 튜닝 분석(Oracle/PostgreSQL)과 Oracle 성능 Top SQL 추출 (전 기능 폐쇄망 내 동작)
           </p>
         </div>
       </div>
@@ -148,21 +158,21 @@ export default function TuningPage() {
       <div className="card tp-controls">
         <div className="tp-controls__row">
           <div className="form-group tp-controls__server">
-            <label className="form-label required">대상 Oracle 서버</label>
+            <label className="form-label required">대상 서버</label>
             <select
               className="form-control"
               value={serverId}
               onChange={(e) => setServerId(e.target.value)}
             >
-              {!servers.length && <option value="">등록된 Oracle 서버 없음</option>}
+              {!servers.length && <option value="">등록된 서버 없음</option>}
               {servers.map((s) => (
                 <option key={s.db_server_id} value={s.db_server_id}>
-                  {s.db_server_nm} — {s.host_nm}:{s.port_no}/{s.database_nm}
+                  [{s.db_type_nm}] {s.db_server_nm} — {s.host_nm}:{s.port_no}/{s.database_nm}
                 </option>
               ))}
             </select>
           </div>
-          {selectedServer && (
+          {selectedServer && isOracleSelected && (
             <div className="tp-controls__packs">
               <span className={`badge ${selectedServer.diag_pack_yn === 'Y' ? 'badge-blue' : 'badge-gray'}`}>
                 Diagnostics Pack {selectedServer.diag_pack_yn === 'Y' ? '사용' : '미사용'}
@@ -179,7 +189,7 @@ export default function TuningPage() {
         {serversError && <div className="alert alert-error">{serversError}</div>}
         {!serversError && !servers.length && (
           <div className="alert alert-error">
-            등록된 Oracle 서버가 없습니다. 서버등록 메뉴에서 DB 종류를 Oracle로 하여 서버를 먼저 등록하세요.
+            등록된 Oracle/PostgreSQL 서버가 없습니다. 서버등록 메뉴에서 서버를 먼저 등록하세요.
           </div>
         )}
       </div>
@@ -196,6 +206,8 @@ export default function TuningPage() {
           type="button"
           className={`tp-tab${tab === 'top' ? ' is-active' : ''}`}
           onClick={() => setTab('top')}
+          disabled={!isOracleSelected}
+          title={isOracleSelected ? undefined : 'Top SQL 조회는 Oracle 서버만 지원합니다.'}
         >
           Top SQL
         </button>
@@ -219,7 +231,8 @@ export default function TuningPage() {
                   spellCheck={false}
                 />
                 <span className="form-hint">
-                  지정하면 해당 스키마 기준으로 SQL을 해석합니다 (ALTER SESSION SET CURRENT_SCHEMA).
+                  지정하면 해당 스키마 기준으로 SQL을 해석합니다
+                  (Oracle: ALTER SESSION SET CURRENT_SCHEMA / PostgreSQL: SET search_path).
                 </span>
               </div>
               <textarea
@@ -253,7 +266,16 @@ export default function TuningPage() {
             </div>
           </div>
 
-          {report && <TuningReport report={report} />}
+          {report && (
+            <TuningReport
+              report={report}
+              onUseTunedSql={(tuned) => {
+                const pretty = formatTuningSql(tuned)
+                setSqlText(pretty)
+                handleAnalyze(tuned)
+              }}
+            />
+          )}
         </>
       )}
 
@@ -386,34 +408,56 @@ function worstSeverity(notes) {
   notes[0].severity)
 }
 
-function PlanTree({ rows, annotations }) {
-  if (!rows?.length) return <p className="tp-empty">실행계획이 없습니다.</p>
+function planField(row, name) {
+  if (!row) return undefined
+  if (row[name] !== undefined) return row[name]
+  const upper = name.toUpperCase()
+  if (row[upper] !== undefined) return row[upper]
+  const lower = name.toLowerCase()
+  return row[lower]
+}
+
+function PlanTree({ rows, annotations, emptyHint }) {
+  if (!rows?.length) {
+    return (
+      <p className="tp-empty">
+        {emptyHint || '실행계획이 없습니다. SQL·스키마·테이블 존재 여부를 확인하세요.'}
+      </p>
+    )
+  }
   return (
     <div className="tp-ptree" role="tree">
-      {rows.map((row) => {
-        const notes = annotations?.[row.ID] ?? []
+      {rows.map((row, idx) => {
+        const id = planField(row, 'ID') ?? idx
+        const notes = annotations?.[id] ?? annotations?.[String(id)] ?? []
         const sev = worstSeverity(notes)
-        const depth = Number(row.DEPTH ?? 0)
-        const operation = [row.OPERATION, row.OPTIONS].filter(Boolean).join(' ')
+        const depth = Number(planField(row, 'DEPTH') ?? 0)
+        const operation = [planField(row, 'OPERATION'), planField(row, 'OPTIONS')].filter(Boolean).join(' ')
+        const objectName = planField(row, 'OBJECT_NAME')
+        const objectOwner = planField(row, 'OBJECT_OWNER')
+        const cardinality = planField(row, 'CARDINALITY')
+        const cost = planField(row, 'COST')
+        const accessPred = planField(row, 'ACCESS_PREDICATES')
+        const filterPred = planField(row, 'FILTER_PREDICATES')
         return (
           <div
-            key={row.ID}
+            key={id}
             className={`tp-ptree__node${sev ? ` tp-ptree__node--${sev}` : ''}`}
             style={{ marginLeft: depth * 26 }}
           >
             <div className="tp-ptree__row">
               {depth > 0 && <span className="tp-ptree__connector" aria-hidden>└</span>}
               <span className="tp-ptree__op">{operation}</span>
-              {row.OBJECT_NAME && (
+              {objectName && (
                 <span className="tp-ptree__obj">
-                  {row.OBJECT_OWNER ? `${row.OBJECT_OWNER}.` : ''}{row.OBJECT_NAME}
+                  {objectOwner ? `${objectOwner}.` : ''}{objectName}
                 </span>
               )}
               <span className="tp-ptree__metrics">
-                {row.CARDINALITY !== null && row.CARDINALITY !== undefined && (
-                  <span>예상 {formatNumber(row.CARDINALITY)}행</span>
+                {cardinality !== null && cardinality !== undefined && (
+                  <span>예상 {formatNumber(cardinality)}행</span>
                 )}
-                {row.COST !== null && row.COST !== undefined && <span>COST {formatNumber(row.COST)}</span>}
+                {cost !== null && cost !== undefined && <span>COST {formatNumber(cost)}</span>}
               </span>
               {sev && (
                 <span className={`tp-ptree__flag tp-ptree__flag--${sev}`}>
@@ -421,10 +465,10 @@ function PlanTree({ rows, annotations }) {
                 </span>
               )}
             </div>
-            {(row.ACCESS_PREDICATES || row.FILTER_PREDICATES) && (
+            {(accessPred || filterPred) && (
               <div className="tp-ptree__preds">
-                {row.ACCESS_PREDICATES && <div>access: {row.ACCESS_PREDICATES}</div>}
-                {row.FILTER_PREDICATES && <div>filter: {row.FILTER_PREDICATES}</div>}
+                {accessPred && <div>access: {accessPred}</div>}
+                {filterPred && <div>filter: {filterPred}</div>}
               </div>
             )}
             {notes.map((n, i) => (
@@ -439,8 +483,17 @@ function PlanTree({ rows, annotations }) {
   )
 }
 
-function TuningReport({ report }) {
-  const { summary, findings, plan, plan_error, plan_annotations, dictionary, dictionary_error, pack_info, llm_explanation } = report
+function TuningReport({ report, onUseTunedSql }) {
+  const {
+    summary, findings, rewrite, plan, plan_error, plan_annotations,
+    plan_after, plan_after_error, plan_after_annotations, plan_compare,
+    dictionary, dictionary_error, pack_info, llm_explanation,
+  } = report
+
+  // 전/후 실행계획은 항상 나란히 표시 (SQL 변경이 없어도 "동일" 후 계획 표시)
+  const afterPlan = rewrite?.changed ? plan_after : plan
+  const afterPlanError = rewrite?.changed ? plan_after_error : plan_error
+  const afterAnnotations = rewrite?.changed ? plan_after_annotations : plan_annotations
 
   return (
     <>
@@ -467,6 +520,96 @@ function TuningReport({ report }) {
           </div>
         </div>
 
+        {rewrite && (
+          <div className="tp-section">
+            <div className="tp-section__head">
+              <h3 className="tp-section__title">튜닝 전 · 후 쿼리</h3>
+              {!!rewrite.candidate_count && (
+                <span className="tp-rewrite__candidates-hint">
+                  {rewrite.changed
+                    ? `후보 SQL ${rewrite.candidate_count}개 중 실행계획 COST가 가장 낮은 후보를 채택했습니다.`
+                    : `후보 SQL ${rewrite.candidate_count}개를 비교했지만 원본보다 COST가 낮은 후보가 없어 원문을 유지했습니다.`}
+                </span>
+              )}
+              {rewrite.changed && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => onUseTunedSql?.(rewrite.tuned_sql)}
+                >
+                  튜닝 후 쿼리로 다시 분석
+                </button>
+              )}
+            </div>
+
+            <div className="tp-rewrite">
+              <div className="tp-rewrite__col">
+                <div className="tp-rewrite__label">튜닝 전</div>
+                <SqlHighlight sql={rewrite.original_sql} />
+              </div>
+              <div className="tp-rewrite__col tp-rewrite__col--after">
+                <div className="tp-rewrite__label">
+                  튜닝 후
+                  {rewrite.changed ? (
+                    <span className="badge badge-blue">규칙 기반 재작성</span>
+                  ) : rewrite.notes?.length ? (
+                    <span className="badge badge-red">수동 조치 필요 ({rewrite.notes.length}건)</span>
+                  ) : (
+                    <span className="badge badge-gray">변경 없음</span>
+                  )}
+                </div>
+                <SqlHighlight sql={rewrite.tuned_sql} variant="after" />
+              </div>
+            </div>
+
+            {!!rewrite.transforms?.length && (
+              <div className="tp-rewrite__transforms">
+                <div className="tp-rewrite__transforms-title">적용된 SQL 재작성 ({rewrite.transforms.length}건)</div>
+                <ul>
+                  {rewrite.transforms.map((t, i) => (
+                    <li key={`${t.rule_id}-${i}`}>
+                      <strong>{t.title}</strong>
+                      <span className="tp-rewrite__rule">({t.rule_id})</span>
+                      <span className="tp-rewrite__desc"> — {t.description}</span>
+                      <div className="tp-rewrite__diff">
+                        <code className="tp-rewrite__before">{t.before}</code>
+                        <span aria-hidden>→</span>
+                        <code className="tp-rewrite__after">{t.after}</code>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!!rewrite.notes?.length && (
+              <div className="tp-rewrite__notes">
+                <div className="tp-rewrite__transforms-title">
+                  SQL 재작성으로 해결되지 않는 항목 ({rewrite.notes.length}건)
+                </div>
+                <p className="tp-rewrite__notes-hint">
+                  인덱스 생성·통계 수집 등 DDL/운영 작업이 필요합니다. 아래는 발견사항에서 추출한 권고입니다.
+                </p>
+                <ul>
+                  {rewrite.notes.map((n, i) => (
+                    <li key={`${n.rule_id}-${i}`}>
+                      <span className={`tp-sev-inline tp-sev--${n.severity}`}>{SEVERITY_META[n.severity]?.label}</span>
+                      <strong>{n.title}</strong>
+                      <span className="tp-rewrite__rule">({n.rule_id})</span>
+                      <span className="tp-rewrite__desc"> — {n.note}</span>
+                      {n.ddl && <code className="tp-rewrite__ddl">{n.ddl}</code>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!rewrite.changed && !rewrite.notes?.length && (
+              <p className="tp-empty">규칙 기반으로 자동 재작성할 내용이 없습니다.</p>
+            )}
+          </div>
+        )}
+
         {llm_explanation && (
           <div className="tp-llm">
             <div className="tp-llm__title">sLLM 해설 ({llm_explanation.model})</div>
@@ -474,25 +617,96 @@ function TuningReport({ report }) {
           </div>
         )}
 
-        <div className="tp-section">
-          <h3 className="tp-section__title">실행계획 (EXPLAIN PLAN)</h3>
-          {plan_error ? (
-            <div className="alert alert-error">실행계획 생성 실패: {plan_error}</div>
-          ) : (
-            <>
-              <PlanTree rows={plan?.rows} annotations={plan_annotations} />
-              <p className="tp-plan__legend">
-                <span className="tp-plan__legend-bad">■</span> 오류 단계
-                <span className="tp-plan__legend-warn">■</span> 경고 단계 — 문제 단계 아래에 원인·권고 설명이 표시됩니다.
-              </p>
-              {plan?.text && (
-                <details className="tp-plan__raw">
-                  <summary>원문 보기 (DBMS_XPLAN.DISPLAY)</summary>
-                  <PlanText text={plan.text} />
-                </details>
-              )}
-            </>
+        <div className="tp-section tp-section--plan" id="tp-plan-section">
+          <h3 className="tp-section__title">실행계획 비교 (튜닝 전 · 후)</h3>
+
+          {plan_compare && (
+            <div className={`tp-plan-compare ${plan_compare.improved ? 'tp-plan-compare--better' : plan_compare.cost_delta > 0 ? 'tp-plan-compare--worse' : ''}`}>
+              <div className="tp-plan-compare__item">
+                <span className="tp-plan-compare__label">COST</span>
+                <span>{formatNumber(plan_compare.before_cost)} → {formatNumber(plan_compare.after_cost)}</span>
+                <span className="tp-plan-compare__delta">
+                  {plan_compare.cost_delta === 0
+                    ? '변동 없음'
+                    : `${plan_compare.cost_delta > 0 ? '+' : ''}${formatNumber(plan_compare.cost_delta)}`
+                      + (plan_compare.cost_ratio != null
+                        ? ` (${(plan_compare.cost_ratio * 100).toFixed(0)}%)`
+                        : '')}
+                </span>
+              </div>
+              <div className="tp-plan-compare__item">
+                <span className="tp-plan-compare__label">FULL SCAN</span>
+                <span>{plan_compare.before_full_scans} → {plan_compare.after_full_scans}</span>
+              </div>
+              <div className="tp-plan-compare__item">
+                <span className="tp-plan-compare__label">예상 행수</span>
+                <span>{formatNumber(plan_compare.before_cardinality)} → {formatNumber(plan_compare.after_cardinality)}</span>
+              </div>
+            </div>
           )}
+
+          {!plan_compare && !plan_error && !afterPlanError && (
+            <p className="tp-plan-compare-hint">
+              {rewrite?.changed
+                ? '튜닝 후 실행계획을 비교할 수 없습니다. 오류 메시지를 확인하세요.'
+                : 'SQL 재작성 변경이 없어 전·후 실행계획이 동일합니다.'}
+            </p>
+          )}
+
+          <div className="tp-plan-duo">
+            <div className="tp-plan-duo__col">
+              <div className="tp-plan-duo__label">튜닝 전</div>
+              {plan_error ? (
+                <div className="alert alert-error" style={{ whiteSpace: 'pre-wrap' }}>
+                  실행계획 생성 실패: {plan_error}
+                </div>
+              ) : (
+                <>
+                  <PlanTree rows={plan?.rows} annotations={plan_annotations} />
+                  {plan?.text ? (
+                    <details className="tp-plan__raw" open={!plan?.rows?.length}>
+                      <summary>원문 보기 (DBMS_XPLAN)</summary>
+                      <PlanText text={plan.text} />
+                    </details>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <div className="tp-plan-duo__col tp-plan-duo__col--after">
+              <div className="tp-plan-duo__label">
+                튜닝 후
+                {!rewrite?.changed && <span className="badge badge-gray">동일</span>}
+                {plan_compare?.improved && <span className="badge badge-blue">COST 개선</span>}
+                {plan_compare && !plan_compare.improved && plan_compare.cost_delta > 0 && (
+                  <span className="badge badge-red">COST 증가</span>
+                )}
+              </div>
+              {afterPlanError ? (
+                <div className="alert alert-error" style={{ whiteSpace: 'pre-wrap' }}>
+                  실행계획 생성 실패: {afterPlanError}
+                </div>
+              ) : (
+                <>
+                  <PlanTree
+                    rows={afterPlan?.rows}
+                    annotations={afterAnnotations}
+                    emptyHint={rewrite?.changed ? '튜닝 후 실행계획이 없습니다.' : '실행계획이 없습니다.'}
+                  />
+                  {afterPlan?.text ? (
+                    <details className="tp-plan__raw" open={!afterPlan?.rows?.length}>
+                      <summary>원문 보기 (DBMS_XPLAN)</summary>
+                      <PlanText text={afterPlan.text} />
+                    </details>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+
+          <p className="tp-plan__legend">
+            <span className="tp-plan__legend-bad">■</span> 오류 단계
+            <span className="tp-plan__legend-warn">■</span> 경고 단계 — 문제 단계 아래에 원인·권고 설명이 표시됩니다.
+          </p>
         </div>
 
         <div className="tp-section">
