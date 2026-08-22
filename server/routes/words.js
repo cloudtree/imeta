@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
-import { lookupNaverDictionary, lookupNaverEnglishDictionary } from '../naverDict.js'
+import { lookupNaverEnglishDictionary } from '../naverDict.js'
 import { validateNoPluralEnglish } from '../wordAbbrev.js'
 
 const router = Router()
@@ -61,20 +61,7 @@ router.get('/dictionary-en', async (req, res) => {
     if (!q) return res.status(400).json({ message: '검색할 단어명(q)을 입력하세요.' })
 
     const result = await lookupNaverEnglishDictionary(q)
-    res.json(result)
-  } catch (err) {
-    const status = err.status ?? 500
-    res.status(status).json({ message: err.message })
-  }
-})
-
-// GET /api/words/dictionary-desc  - 네이버 국어사전 뜻풀이 조회 (/:id 보다 먼저 등록)
-router.get('/dictionary-desc', async (req, res) => {
-  try {
-    const q = req.query.q?.trim()
-    if (!q) return res.status(400).json({ message: '검색할 단어명(q)을 입력하세요.' })
-
-    const result = await lookupNaverDictionary(q)
+    if (!result) return res.status(204).end()
     res.json(result)
   } catch (err) {
     const status = err.status ?? 500
@@ -86,7 +73,7 @@ router.get('/dictionary-desc', async (req, res) => {
 router.get('/dictionary', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT std_word_nm, abb_word_nm, taxon_yn FROM meta_std_word_m ORDER BY std_word_nm`
+      `SELECT std_word_id, std_word_nm, abb_word_nm, full_eng_nm, taxon_yn FROM meta_std_word_m ORDER BY std_word_nm`
     )
     res.json(rows)
   } catch (err) {
@@ -120,7 +107,7 @@ router.post('/bulk', async (req, res) => {
         const kor_synonym_nm = r.kor_synonym_nm?.trim() ?? ''
         const taxon_yn       = r.taxon_yn?.trim().toUpperCase() || 'N'
         const use_yn         = r.use_yn?.trim().toUpperCase() || 'Y'
-        let std_word_desc    = r.std_word_desc?.trim() || null
+        const std_word_desc  = r.std_word_desc?.trim() || null
         const subject_area_id = r.subject_area_id?.trim() || 'STD01'
 
         if (!std_word_nm)  throw new Error('단어명은 필수입니다.')
@@ -129,15 +116,6 @@ router.post('/bulk', async (req, res) => {
 
         const pluralErr = validateNoPluralEnglish({ full_eng_nm, abb_word_nm })
         if (pluralErr) throw new Error(pluralErr)
-
-        if (!std_word_desc) {
-          try {
-            const dict = await lookupNaverDictionary(std_word_nm)
-            std_word_desc = dict.definition || null
-          } catch {
-            // 사전 조회 실패 시 설명 없이 등록
-          }
-        }
 
         await client.query(
           `INSERT INTO meta_std_word_m (std_word_nm, abb_word_nm, full_eng_nm, kor_synonym_nm, taxon_yn, std_word_desc, use_yn, subject_area_id)

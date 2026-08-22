@@ -23,6 +23,7 @@ import { migrateNamingRules } from './migrateNamingRules.js'
 import { migrateSubjectAreaSystem } from './migrateSubjectAreaSystem.js'
 import { migrateInternalComments } from './migrateInternalComments.js'
 import { migrateInternalSchemaRename } from './migrateInternalSchemaRename.js'
+import { migrateFixUpdDtmTrigger } from './migrateFixUpdDtmTrigger.js'
 import { migrateDropCompatViews } from './migrateDropCompatViews.js'
 import { describeDbTarget } from './dbConfig.js'
 import { pool } from './db.js'
@@ -81,6 +82,8 @@ app.listen(PORT, async () => {
     await migrateDomainsDataLength()
     // 2) 표준 물리명으로 테이블/컬럼 RENAME
     await migrateInternalSchemaRename()
+    // 2-1) 리네임 후에도 남아있는 구 updated_at 트리거 수정
+    await migrateFixUpdDtmTrigger()
     // 3) 신규 환경용 DDL (신 물리명)
     await migrateUsers()
     await migrateDataObjects()

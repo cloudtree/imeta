@@ -2,12 +2,14 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { testDbConnection } from '../dbConnectionTest.js'
 import { withDbServerClient } from '../dbClient.js'
+import { withOracleConnection } from '../oracleClient.js'
 import { normalizeOraPrivilege } from '../oracleConnectOptions.js'
 import {
   fetchUserTables,
   fetchTableDefinition,
   fetchSchemaDefinitionRows,
 } from '../dbSchemaIntrospection.js'
+import { fetchOracleSchemaDefinitionRows } from '../oracleSchemaIntrospection.js'
 
 const router = Router()
 
@@ -185,18 +187,27 @@ router.get('/:id/schema/definitions', async (req, res) => {
   try {
     const server = await getServerCredentials(req.params.id)
     if (!server) return res.status(404).json({ message: 'DB 서버를 찾을 수 없습니다.' })
-    if (!assertPostgres(server, res)) return
 
-    const items = await withDbServerClient(server, (client) =>
-      fetchSchemaDefinitionRows(client, { dbType: 'PostgreSQL' }),
-    )
+    const isOracle = (server.db_type_nm || 'POSTGRES').toUpperCase() === 'ORACLE'
+
+    let items
+    if (isOracle) {
+      const rawItems = await withOracleConnection(server, (connection) =>
+        fetchOracleSchemaDefinitionRows(connection),
+      )
+      items = rawItems.map((item) => ({ ...item, schema_name: server.user_nm }))
+    } else {
+      items = await withDbServerClient(server, (client) =>
+        fetchSchemaDefinitionRows(client, { dbType: 'PostgreSQL' }),
+      )
+    }
 
     res.json({
       server: {
         db_server_id: server.db_server_id,
         db_server_nm: server.db_server_nm,
         database_nm: server.database_nm,
-        db_type_nm: 'PostgreSQL',
+        db_type_nm: isOracle ? 'Oracle' : 'PostgreSQL',
       },
       items,
       total: items.length,

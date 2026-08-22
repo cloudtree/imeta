@@ -13,7 +13,7 @@ import SearchBar from '../../components/common/SearchBar'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import ExcelUploadModal from '../../components/common/ExcelUploadModal'
 import TermForm from './TermForm'
-import { validateTermFields, validateTermRow, normalizeDataLenValue } from '../../utils/termValidation'
+import { validateTermFields, validateTermRow, normalizeDataLenValue, inferWordSelections } from '../../utils/termValidation'
 
 const EXCEL_COLUMNS = [
   { key: 'subject_area_id',    label: '주제영역ID',    required: false, example: 'STD01' },
@@ -93,7 +93,8 @@ export default function TermsPage() {
 
   const openEdit = (row) => {
     setSelectedRow(row)
-    setFormValue({ ...row, _segments: null })
+    const wordSelections = inferWordSelections(row.logical_term_nm, row.physical_term_nm, words)
+    setFormValue({ ...row, _segments: null, _wordSelections: wordSelections })
     setFormError(null)
     setPanelMode('edit')
   }
@@ -117,7 +118,8 @@ export default function TermsPage() {
     if (err) { setFormError(err); return }
     setSaving(true)
     setFormError(null)
-    const { _segments, _domainTouched, ...payload } = formValue
+    const { _segments, _domainTouched, _wordSelections, ...rest } = formValue
+    const payload = { ...rest, word_selections: _wordSelections ?? {} }
     try {
       if (panelMode === 'create') {
         await create(payload)

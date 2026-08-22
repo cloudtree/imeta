@@ -10,6 +10,7 @@ import DomainsPage from './pages/domains/DomainsPage'
 import SubjectAreasPage from './pages/subjectAreas/SubjectAreasPage'
 import ServerRegisterPage from './pages/database/ServerRegisterPage'
 import DatabaseReviewPage from './pages/database/DatabaseReviewPage'
+import ServerStandardReviewPage from './pages/database/ServerStandardReviewPage'
 import TableDefinitionReviewPage from './pages/database/TableDefinitionReviewPage'
 import DataModelManagePage from './pages/database/DataModelManagePage'
 import TuningPage from './pages/database/TuningPage'
@@ -27,6 +28,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="/servers/register" element={<ServerRegisterPage />} />
             <Route path="/database/review" element={<DatabaseReviewPage />} />
+            <Route path="/database/server-standard-review" element={<ServerStandardReviewPage />} />
             <Route path="/database/table-definition-review" element={<TableDefinitionReviewPage />} />
             <Route path="/database/data-models" element={<DataModelManagePage />} />
             <Route path="/database/tuning" element={<TuningPage />} />

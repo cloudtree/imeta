@@ -74,19 +74,19 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
     })
   }
 
-  // 논리명 변경 시 매칭·물리명·도메인 자동 생성
-  const handleLogicalTerm = (e) => {
-    const logical = e.target.value
-    const { segments, physForward: physical } = resolveLogicalSegments(logical, words)
+  // 논리명·동음이의어 선택 반영 → 매칭·물리명·도메인 재계산
+  const recomputeFromLogical = (logical, selections, prev = value) => {
+    const { segments, physForward: physical } = resolveLogicalSegments(logical, words, selections)
     const matched   = segments.filter((s) => s.matched).map((s) => s.word)
     const last      = matched[matched.length - 1]
     const unmatched = segments.some((s) => !s.matched)
 
     let next = {
-      ...value,
+      ...prev,
       logical_term_nm:   logical,
       physical_term_nm:  physical,
       _segments:      segments,
+      _wordSelections: selections,
       _domainTouched: false,
     }
 
@@ -97,14 +97,26 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
       next.std_domain_id     = next.std_domain_id ?? ''
     }
 
-    onChange(next)
+    return next
+  }
+
+  const handleLogicalTerm = (e) => {
+    onChange(recomputeFromLogical(e.target.value, value._wordSelections ?? {}))
+  }
+
+  // 동음이의어 후보 중 하나를 선택 — 해당 단어명의 선택을 기억해 재매칭
+  const handleSelectHomonym = (stdWordNm, stdWordId) => {
+    const selections = { ...(value._wordSelections ?? {}), [stdWordNm]: stdWordId }
+    onChange(recomputeFromLogical(value.logical_term_nm, selections))
   }
 
   const normalizedLogical = normalizeLogicalTerm(value.logical_term_nm)
 
+  const wordSelections = value._wordSelections ?? {}
+
   const resolved = useMemo(() => {
     if (value._segments && value.logical_term_nm != null) {
-      const base = resolveLogicalSegments(value.logical_term_nm, words)
+      const base = resolveLogicalSegments(value.logical_term_nm, words, wordSelections)
       return { ...base, segments: value._segments }
     }
     if (!normalizedLogical || words.length === 0) {
@@ -113,8 +125,8 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
         isAmbiguous: false, physForward: '', physReverse: '',
       }
     }
-    return resolveLogicalSegments(value.logical_term_nm, words)
-  }, [value._segments, value.logical_term_nm, normalizedLogical, words])
+    return resolveLogicalSegments(value.logical_term_nm, words, wordSelections)
+  }, [value._segments, value.logical_term_nm, normalizedLogical, words, wordSelections])
 
   const {
     segments, segmentsRev, hasBounds, isAmbiguous, physForward, physReverse,
@@ -278,14 +290,31 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
               seg.matched ? (
                 <span key={i} style={{
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  background: seg.word.taxon_yn === 'Y' ? '#dbeafe' : '#f0fdf4',
-                  border: `1px solid ${seg.word.taxon_yn === 'Y' ? '#93c5fd' : '#86efac'}`,
+                  background: seg.candidates ? '#fffbeb' : (seg.word.taxon_yn === 'Y' ? '#dbeafe' : '#f0fdf4'),
+                  border: `1px solid ${seg.candidates ? '#fcd34d' : (seg.word.taxon_yn === 'Y' ? '#93c5fd' : '#86efac')}`,
                   borderRadius: '4px', padding: '2px 7px', fontSize: '12px',
                 }}>
                   <span style={{ fontWeight: 600, color: '#1e40af' }}>{seg.word.std_word_nm}</span>
                   <span style={{ color: '#6b7280' }}>→</span>
                   <span style={{ fontFamily: 'monospace', color: '#059669', fontWeight: 600 }}>{seg.word.abb_word_nm}</span>
                   {seg.word.taxon_yn === 'Y' && <span style={{ color: '#2563eb', fontSize: '10px' }}>★분류어</span>}
+                  {seg.candidates && (
+                    <select
+                      value={String(seg.word.std_word_id)}
+                      onChange={(e) => handleSelectHomonym(seg.word.std_word_nm, e.target.value)}
+                      title="동일한 단어명이 여러 건 등록되어 있습니다. 사용할 항목을 선택하세요."
+                      style={{
+                        fontSize: '11px', border: '1px solid #f59e0b', borderRadius: '3px',
+                        marginLeft: '2px', background: '#fff', color: '#92400e', cursor: 'pointer',
+                      }}
+                    >
+                      {seg.candidates.map((c) => (
+                        <option key={c.std_word_id} value={c.std_word_id}>
+                          {c.abb_word_nm} · {c.full_eng_nm}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </span>
               ) : (
                 <span key={i} style={{
@@ -383,10 +412,10 @@ export default function TermForm({ value, onChange, words: wordsProp, domains: d
             </span>
           )}
 
-          {/* 동음이의어 경고 (VB HasDup) */}
+          {/* 동음이의어 경고 (VB HasDup) — 매칭 결과의 노란색 선택 상자에서 항목 선택 가능 */}
           {homonymWords.length > 0 && (
             <span style={{ color: '#d97706', fontSize: '12px' }}>
-              ⚠ 동음이의어 확인 필요: {homonymWords.map((w) => `"${w.std_word_nm}"`).join(', ')}
+              ⚠ 동음이의어: {homonymWords.map((w) => `"${w.std_word_nm}"`).join(', ')} — 위 매칭 결과의 선택 상자에서 사용할 항목을 선택하세요.
             </span>
           )}
         </div>

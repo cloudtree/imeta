@@ -43,14 +43,28 @@ function splitLogicalChunks(logical) {
     .filter(Boolean)
 }
 
-function matchWords(text, wordList) {
+function candidatesFor(matchedWord, wordList) {
+  const same = wordList.filter((w) => w.std_word_nm === matchedWord.std_word_nm)
+  return same.length > 1 ? same : undefined
+}
+
+function resolveCandidate(matchedWord, candidates, selections) {
+  if (!candidates) return matchedWord
+  const selectedId = selections?.[matchedWord.std_word_nm]
+  if (selectedId == null) return matchedWord
+  return candidates.find((c) => String(c.std_word_id) === String(selectedId)) ?? matchedWord
+}
+
+function matchWords(text, wordList, selections = {}) {
   const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = 0
   while (pos < text.length) {
     const match = sorted.find((w) => text.startsWith(w.std_word_nm, pos))
     if (match) {
-      result.push({ word: match, matched: true })
+      const candidates = candidatesFor(match, wordList)
+      const word = resolveCandidate(match, candidates, selections)
+      result.push({ word, matched: true, candidates })
       pos += match.std_word_nm.length
     } else {
       const last = result[result.length - 1]
@@ -62,27 +76,27 @@ function matchWords(text, wordList) {
   return result
 }
 
-function matchWordsByChunks(logical, wordList) {
+function matchWordsByChunks(logical, wordList, selections = {}) {
   const chunks = splitLogicalChunks(logical)
   if (chunks.length === 0) return []
-  if (chunks.length === 1) return matchWords(chunks[0], wordList)
+  if (chunks.length === 1) return matchWords(chunks[0], wordList, selections)
   const segments = []
-  for (const chunk of chunks) segments.push(...matchWords(chunk, wordList))
+  for (const chunk of chunks) segments.push(...matchWords(chunk, wordList, selections))
   return segments
 }
 
-function matchLogicalTerm(logical, wordList) {
+function matchLogicalTerm(logical, wordList, selections = {}) {
   if (!logical?.trim() || !wordList?.length) return []
-  if (hasExplicitBoundaries(logical)) return matchWordsByChunks(logical, wordList)
-  return matchWords(normalizeLogicalTerm(logical), wordList)
+  if (hasExplicitBoundaries(logical)) return matchWordsByChunks(logical, wordList, selections)
+  return matchWords(normalizeLogicalTerm(logical), wordList, selections)
 }
 
-function resolveLogicalSegments(logical, wordList) {
+function resolveLogicalSegments(logical, wordList, selections = {}) {
   const hasBounds   = hasExplicitBoundaries(logical)
   const normalized  = normalizeLogicalTerm(logical)
-  const segments    = normalized && wordList.length ? matchLogicalTerm(logical, wordList) : []
+  const segments    = normalized && wordList.length ? matchLogicalTerm(logical, wordList, selections) : []
   const segmentsRev = !hasBounds && normalized && wordList.length
-    ? matchWordsReverse(normalized, wordList)
+    ? matchWordsReverse(normalized, wordList, selections)
     : []
   const physForward = toPhysical(segments)
   const physReverse = toPhysical(segmentsRev)
@@ -90,7 +104,7 @@ function resolveLogicalSegments(logical, wordList) {
   return { segments, segmentsRev, hasBounds, isAmbiguous, physForward, physReverse }
 }
 
-function matchWordsReverse(text, wordList) {
+function matchWordsReverse(text, wordList, selections = {}) {
   const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = text.length
@@ -99,7 +113,9 @@ function matchWordsReverse(text, wordList) {
       (w) => w.std_word_nm.length <= pos && text.slice(pos - w.std_word_nm.length, pos) === w.std_word_nm
     )
     if (match) {
-      result.unshift({ word: match, matched: true })
+      const candidates = candidatesFor(match, wordList)
+      const word = resolveCandidate(match, candidates, selections)
+      result.unshift({ word, matched: true, candidates })
       pos -= match.std_word_nm.length
     } else {
       const first = result[0]
@@ -138,9 +154,10 @@ function findSynonymTerm(normalizedLogical, segments, existingTerms, wordList, e
 function validateTermFields(input, ctx = {}) {
   const {
     logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, info_type_nm,
-    data_type_nm, data_len, subject_area_id, std_term_id,
+    data_type_nm, data_len, subject_area_id, std_term_id, word_selections,
   } = input
   const { words = [], domains = [], existingTerms = [], requireDomainGroup = false } = ctx
+  const wordSelections = word_selections || {}
   const errors = []
 
   if (!subject_area_id?.trim()) errors.push('주제영역은 필수입니다.')
@@ -160,7 +177,7 @@ function validateTermFields(input, ctx = {}) {
     isAmbiguous,
     physForward,
     physReverse,
-  } = resolveLogicalSegments(logical_term_nm, words)
+  } = resolveLogicalSegments(logical_term_nm, words, wordSelections)
   const phys        = (physical_term_nm || '').trim().toUpperCase()
 
   if (normalized && words.length) {
@@ -192,8 +209,9 @@ function validateTermFields(input, ctx = {}) {
   }
 
   const homonyms = findHomonyms(segments.filter((s) => s.matched).map((s) => s.word), words)
+    .filter((w) => wordSelections[w.std_word_nm] == null)
   if (homonyms.length) {
-    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`)
+    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')} — 매칭 결과의 선택 상자에서 사용할 항목을 선택하세요.`)
   }
 
   const synonym = findSynonymTerm(normalized, segments, existingTerms, words, std_term_id ?? null)
@@ -223,7 +241,7 @@ function assertTermValid(input, ctx) {
 
 async function loadTermValidationContext(client) {
   const [wordsRes, domainsRes, termsRes] = await Promise.all([
-    client.query(`SELECT std_word_nm, abb_word_nm, taxon_yn FROM meta_std_word_m`),
+    client.query(`SELECT std_word_id, std_word_nm, abb_word_nm, taxon_yn FROM meta_std_word_m`),
     client.query(`SELECT domain_group_nm, info_type_nm FROM meta_std_domain_m`),
     client.query(`SELECT std_term_id, logical_term_nm FROM meta_std_term_m`),
   ])
@@ -331,13 +349,13 @@ router.post('/', async (req, res) => {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn = 'Y', subject_area_id } = req.body
+    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn = 'Y', subject_area_id, word_selections } = req.body
     const data_len = normalizeTermDataLen(req.body.data_len, data_type_nm, req.body.data_scale) || null
     let { std_domain_id } = req.body
 
     const vctx = await loadTermValidationContext(client)
     assertTermValid(
-      { logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, subject_area_id },
+      { logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id, data_type_nm, data_len, subject_area_id, word_selections },
       { ...vctx, requireDomainGroup: true }
     )
 
@@ -366,7 +384,7 @@ router.put('/:id', async (req, res) => {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn, subject_area_id } = req.body
+    const { logical_term_nm, physical_term_nm, domain_group_nm, data_type_nm, std_term_desc, use_yn, subject_area_id, word_selections } = req.body
     const data_len = normalizeTermDataLen(req.body.data_len, data_type_nm, req.body.data_scale) || null
     let { std_domain_id } = req.body
 
@@ -374,7 +392,7 @@ router.put('/:id', async (req, res) => {
     assertTermValid(
       {
         logical_term_nm, physical_term_nm, domain_group_nm, std_domain_id,
-        data_type_nm, data_len, subject_area_id, std_term_id: Number(req.params.id),
+        data_type_nm, data_len, subject_area_id, std_term_id: Number(req.params.id), word_selections,
       },
       { ...vctx, requireDomainGroup: true }
     )

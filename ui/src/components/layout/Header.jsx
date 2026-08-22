@@ -27,6 +27,7 @@ const NAV_MENUS = [
       { to: '/database/data-models', label: '데이터 모델 관리', desc: '논리·물리 데이터 모델' },
       { to: '/servers/register', label: '서버등록', desc: 'DB 서버 연결 정보' },
       { to: '/database/review', label: '데이터베이스검토', desc: '스키마와 표준 비교' },
+      { to: '/database/server-standard-review', label: '서버표준검토', desc: '컬럼 코멘트 기반 표준 생성' },
       {
         to: '/database/table-definition-review',
         label: '테이블정의서검토',
