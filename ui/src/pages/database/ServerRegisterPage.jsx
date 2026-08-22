@@ -113,6 +113,16 @@ export default function ServerRegisterPage() {
   const columns = useMemo(
     () => [
       { key: 'db_server_nm', label: '서버명', sortable: true },
+      {
+        key: 'db_type_nm',
+        label: 'DB종류',
+        sortable: true,
+        render: (v) => (
+          <span className={`badge ${v === 'ORACLE' ? 'badge-red' : 'badge-blue'}`}>
+            {v === 'ORACLE' ? 'Oracle' : 'PostgreSQL'}
+          </span>
+        ),
+      },
       { key: 'host_nm', label: '호스트', sortable: true },
       { key: 'port_no', label: '포트' },
       { key: 'database_nm', label: 'DB명', sortable: true },

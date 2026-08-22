@@ -22,7 +22,7 @@ export default function WordForm({ value, onChange }) {
 
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value })
 
-  // 단어명 입력 시 네이버 사전 → 영문명·영문약어·설명 자동 입력
+  // 단어명 입력 시 네이버 사전 → 영문명·영문약어 자동 입력
   useEffect(() => {
     const word = value.std_word_nm?.trim()
     if (!word) {
@@ -35,31 +35,18 @@ export default function WordForm({ value, onChange }) {
       setLoading(true)
       setLookupError(null)
       try {
-        const [enResult, descResult] = await Promise.allSettled([
-          wordsApi.lookupEn(word),
-          wordsApi.lookupDesc(word),
-        ])
-
+        const result = await wordsApi.lookupEn(word)
         if (seq !== lookupSeq.current) return
+        if (!result) return // 사전 조회가 비활성화된 환경(폐쇄망 등) — 조용히 건너뜀
 
-        const patch = { ...valueRef.current }
-        const errors = []
-
-        if (enResult.status === 'fulfilled') {
-          patch.full_eng_nm = enResult.value.full_eng_nm
-          patch.abb_word_nm = enResult.value.abb_word_nm
-        } else {
-          errors.push(enResult.reason?.message ?? '영문명 조회 실패')
-        }
-
-        if (descResult.status === 'fulfilled') {
-          patch.std_word_desc = descResult.value.definition
-        } else {
-          errors.push(descResult.reason?.message ?? '설명 조회 실패')
-        }
-
-        onChange(patch)
-        setLookupError(errors.length === 2 ? errors.join(' / ') : errors[0] ?? null)
+        onChange({
+          ...valueRef.current,
+          full_eng_nm: result.full_eng_nm,
+          abb_word_nm: result.abb_word_nm,
+        })
+      } catch (err) {
+        if (seq !== lookupSeq.current) return
+        setLookupError(err?.message ?? '영문명 조회 실패')
       } finally {
         if (seq === lookupSeq.current) setLoading(false)
       }
@@ -130,7 +117,7 @@ export default function WordForm({ value, onChange }) {
 
       <div className="form-group">
         <label className="form-label">설명</label>
-        <textarea className="form-control" value={value.std_word_desc} onChange={set('std_word_desc')} placeholder="단어명 입력 시 네이버 국어사전 뜻풀이가 자동 입력됩니다." rows={3} />
+        <textarea className="form-control" value={value.std_word_desc} onChange={set('std_word_desc')} placeholder="단어에 대한 설명을 입력하세요." rows={3} />
       </div>
     </>
   )

@@ -130,8 +130,6 @@ const COLUMN_COMMENTS = {
   meta_naming_rules: {
     rule_id: '명명규칙ID',
     system_id: '시스템ID',
-    section_cd: '섹션코드',
-    object_type: '객체유형명',
     title: '규칙제목명',
     format_pattern: '형식패턴명',
     parts_json: '구성요소JSON',

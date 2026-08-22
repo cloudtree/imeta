@@ -51,14 +51,14 @@ export function splitLogicalChunks(logical) {
 }
 
 /** 구간별 앞→뒤 매칭 후 병합 (예: "1학년 신청제한여부") */
-export function matchWordsByChunks(logical, wordList) {
+export function matchWordsByChunks(logical, wordList, selections = {}) {
   const chunks = splitLogicalChunks(logical)
   if (chunks.length === 0) return []
-  if (chunks.length === 1) return matchWords(chunks[0], wordList)
+  if (chunks.length === 1) return matchWords(chunks[0], wordList, selections)
 
   const segments = []
   for (const chunk of chunks) {
-    segments.push(...matchWords(chunk, wordList))
+    segments.push(...matchWords(chunk, wordList, selections))
   }
   return segments
 }
@@ -66,19 +66,33 @@ export function matchWordsByChunks(logical, wordList) {
 /**
  * 논리명 매칭 — 공백이 있으면 구간별 매칭, 없으면 전체 연속 매칭
  */
-export function matchLogicalTerm(logical, wordList) {
+export function matchLogicalTerm(logical, wordList, selections = {}) {
   if (!logical?.trim() || !wordList?.length) return []
-  if (hasExplicitBoundaries(logical)) return matchWordsByChunks(logical, wordList)
-  return matchWords(normalizeLogicalTerm(logical), wordList)
+  if (hasExplicitBoundaries(logical)) return matchWordsByChunks(logical, wordList, selections)
+  return matchWords(normalizeLogicalTerm(logical), wordList, selections)
+}
+
+/** 저장된 물리명에서 실제 선택됐던 동음이의어 후보를 역추론 (편집 시 드롭다운 복원용) */
+export function inferWordSelections(logical, physical, wordList) {
+  if (!logical?.trim() || !physical?.trim() || !wordList?.length) return {}
+  const segments = matchLogicalTerm(logical, wordList)
+  const physParts = physical.trim().toUpperCase().split('_')
+  const selections = {}
+  segments.filter((s) => s.matched).forEach((seg, i) => {
+    if (!seg.candidates) return
+    const match = seg.candidates.find((c) => c.abb_word_nm?.toUpperCase() === physParts[i])
+    if (match) selections[seg.word.std_word_nm] = match.std_word_id
+  })
+  return selections
 }
 
 /** 앞/뒤 매칭 결과 및 모호성 판정 */
-export function resolveLogicalSegments(logical, wordList) {
+export function resolveLogicalSegments(logical, wordList, selections = {}) {
   const hasBounds   = hasExplicitBoundaries(logical)
   const normalized  = normalizeLogicalTerm(logical)
-  const segments    = normalized && wordList.length ? matchLogicalTerm(logical, wordList) : []
+  const segments    = normalized && wordList.length ? matchLogicalTerm(logical, wordList, selections) : []
   const segmentsRev = !hasBounds && normalized && wordList.length
-    ? matchWordsReverse(normalized, wordList)
+    ? matchWordsReverse(normalized, wordList, selections)
     : []
   const physForward = toPhysical(segments)
   const physReverse = toPhysical(segmentsRev)
@@ -87,15 +101,31 @@ export function resolveLogicalSegments(logical, wordList) {
   return { segments, segmentsRev, hasBounds, isAmbiguous, physForward, physReverse }
 }
 
+/** 매칭된 단어명과 동일한 단어명을 가진 모든 등록 항목(동음이의어 후보) */
+function candidatesFor(matchedWord, wordList) {
+  const same = wordList.filter((w) => w.std_word_nm === matchedWord.std_word_nm)
+  return same.length > 1 ? same : undefined
+}
+
+/** 동음이의어 후보 중 선택된 항목(없으면 기본 매칭 결과 유지) */
+function resolveCandidate(matchedWord, candidates, selections) {
+  if (!candidates) return matchedWord
+  const selectedId = selections?.[matchedWord.std_word_nm]
+  if (selectedId == null) return matchedWord
+  return candidates.find((c) => String(c.std_word_id) === String(selectedId)) ?? matchedWord
+}
+
 /** VB GetEng — 앞에서부터 최장 매칭 */
-export function matchWords(text, wordList) {
+export function matchWords(text, wordList, selections = {}) {
   const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = 0
   while (pos < text.length) {
     const match = sorted.find((w) => text.startsWith(w.std_word_nm, pos))
     if (match) {
-      result.push({ word: match, matched: true })
+      const candidates = candidatesFor(match, wordList)
+      const word = resolveCandidate(match, candidates, selections)
+      result.push({ word, matched: true, candidates })
       pos += match.std_word_nm.length
     } else {
       const last = result[result.length - 1]
@@ -111,7 +141,7 @@ export function matchWords(text, wordList) {
 }
 
 /** VB GetEngRev — 뒤에서부터 최장 매칭 */
-export function matchWordsReverse(text, wordList) {
+export function matchWordsReverse(text, wordList, selections = {}) {
   const sorted = [...wordList].sort((a, b) => b.std_word_nm.length - a.std_word_nm.length)
   const result = []
   let pos = text.length
@@ -120,7 +150,9 @@ export function matchWordsReverse(text, wordList) {
       (w) => w.std_word_nm.length <= pos && text.slice(pos - w.std_word_nm.length, pos) === w.std_word_nm
     )
     if (match) {
-      result.unshift({ word: match, matched: true })
+      const candidates = candidatesFor(match, wordList)
+      const word = resolveCandidate(match, candidates, selections)
+      result.unshift({ word, matched: true, candidates })
       pos -= match.std_word_nm.length
     } else {
       const first = result[0]
@@ -211,12 +243,13 @@ export function validateTermFields(input, ctx = {}) {
   }
 
   const normalized = normalizeLogicalTerm(logical_term_nm)
+  const wordSelections = input._wordSelections || {}
   const {
     segments,
     isAmbiguous,
     physForward,
     physReverse,
-  } = resolveLogicalSegments(logical_term_nm, words)
+  } = resolveLogicalSegments(logical_term_nm, words, wordSelections)
   const phys         = (physical_term_nm || '').trim().toUpperCase()
 
   // VB FindDicEng — 비표준 단어
@@ -263,11 +296,12 @@ export function validateTermFields(input, ctx = {}) {
     }
   }
 
-  // VB HasDup — 동음이의어
+  // VB HasDup — 동음이의어 (이미 선택한 항목은 통과)
   const matchedWords = segments.filter((s) => s.matched).map((s) => s.word)
   const homonyms     = findHomonyms(matchedWords, words)
+    .filter((w) => wordSelections[w.std_word_nm] == null)
   if (homonyms.length > 0) {
-    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')}`)
+    errors.push(`동음이의어 확인 필요: ${homonyms.map((w) => `"${w.std_word_nm}"`).join(', ')} — 매칭 결과의 선택 상자에서 사용할 항목을 선택하세요.`)
   }
 
   // VB Sort — 동의 용어 검토

@@ -9,8 +9,6 @@ export const ENTERPRISE_SYSTEM = {
 
 export const NAMING_RULE_SEED = [
   {
-    section_cd: '6.3.1',
-    object_type: 'BASIC',
     title: 'DB 객체 기본 명명규칙',
     format_pattern: '영문자 + 숫자 + 구분자(_) / 대문자 / 영문자 시작 / 30자 이내',
     sort_order: 10,
@@ -30,8 +28,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.2',
-    object_type: 'TABLE',
     title: 'Table 명명규칙',
     format_pattern: "주제영역대분류(P1) + '_' + 엔터티영문물리명(P2)",
     sort_order: 20,
@@ -63,8 +59,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.3',
-    object_type: 'COLUMN',
     title: 'Column 명명규칙',
     format_pattern: '속성영문물리명(P1) [ + 일련번호(P2) ]',
     sort_order: 30,
@@ -92,8 +86,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.4',
-    object_type: 'DATABASE',
     title: 'Database 명명규칙',
     format_pattern: '시스템구분(P1) + 서비스축약명(P2) + 서버구분(P3)',
     sort_order: 40,
@@ -122,8 +114,6 @@ export const NAMING_RULE_SEED = [
       "P1, P2, P3 연결 시 구분자('_')를 사용하지 않고, 자릿수는 가능한 8문자 이내로 정의한다. 인스턴스명은 데이터베이스명과 동일하게 구성하며, Oracle RAC의 SID는 데이터베이스명 뒤에 구분자 없이 1자리 숫자를 붙인다.",
   },
   {
-    section_cd: '6.3.5',
-    object_type: 'USER',
     title: 'User(User Schema) 명명규칙',
     format_pattern: '서비스구분(P1) + 용도구분(P2) [ + 일련번호(P3) ]',
     sort_order: 50,
@@ -152,8 +142,6 @@ export const NAMING_RULE_SEED = [
       '데이터베이스에 액세스할 수 있는 권한을 부여한 사용자 계정으로서 각각의 User Name에는 권한(Privilege)을 정의할 수 있다. 단, 패키지 계정이나 이름이 고정된 계정은 원래 이름 그대로 사용한다.',
   },
   {
-    section_cd: '6.3.6',
-    object_type: 'ROLE',
     title: 'Role 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 서비스구분(P2) + '_' + 권한구분(P3)",
     sort_order: 60,
@@ -181,8 +169,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.7',
-    object_type: 'TABLESPACE',
     title: 'Tablespace/File Group 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 주제영역대분류(P2) + '_' + 용도구분(P3) + 일련번호(P4)",
     sort_order: 70,
@@ -217,8 +203,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.8',
-    object_type: 'PARTITION',
     title: 'Partition 명명규칙',
     format_pattern: "PT/PI + '_' + 파티션적용명 | PF/PS + '_' + 파티션컬럼명 + 일련번호",
     sort_order: 80,
@@ -253,8 +237,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.9',
-    object_type: 'INDEX',
     title: 'Index 명명규칙',
     format_pattern: "테이블명(P1) + '_' + 인덱스유형(P2) + 일련번호(P3)",
     sort_order: 90,
@@ -279,8 +261,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.10',
-    object_type: 'CONSTRAINT',
     title: 'Constraint 명명규칙',
     format_pattern: "테이블명(P1) + '_' + 객체구분(P2) + 일련번호(P3)",
     sort_order: 100,
@@ -297,8 +277,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.11',
-    object_type: 'VIEW',
     title: 'View 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 주제영역대분류 + '_' + 업무특성명(P2)",
     sort_order: 110,
@@ -330,8 +308,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.12',
-    object_type: 'SEQUENCE',
     title: 'Sequence 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 테이블명(P2) + 일련번호(P3)",
     sort_order: 120,
@@ -344,8 +320,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.13',
-    object_type: 'PROCEDURE',
     title: 'Procedure/Function/Package 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 업무특성명(P2)",
     sort_order: 130,
@@ -379,8 +353,6 @@ export const NAMING_RULE_SEED = [
     notes: '',
   },
   {
-    section_cd: '6.3.14',
-    object_type: 'TRIGGER',
     title: 'Trigger 명명규칙',
     format_pattern: "TR + '_' + 테이블명 + '_' + TIME + TRANSACTION + ACCESS",
     sort_order: 140,
@@ -413,8 +385,6 @@ export const NAMING_RULE_SEED = [
       'Row Trigger: 영향받는 행마다 실행. Statement Trigger: 트리거링 명령문당 한 번 실행.',
   },
   {
-    section_cd: '6.3.15',
-    object_type: 'DBLINK',
     title: 'Database Link 명명규칙',
     format_pattern: "객체구분(P1) + '_' + 데이터베이스명(P2) + '_' + USER명(P3)",
     sort_order: 150,
@@ -428,8 +398,6 @@ export const NAMING_RULE_SEED = [
       'Database link는 시스템간 표준 데이터 연결방식이 아니므로 정보보호 보안성 심사를 통해 승인 받아야 하며 제한적으로 사용한다.',
   },
   {
-    section_cd: '6.3.16',
-    object_type: 'SYNONYM',
     title: 'Synonym 명명규칙',
     format_pattern: '대상 객체명과 동일',
     sort_order: 160,
@@ -468,8 +436,6 @@ export async function migrateNamingRules() {
       CREATE TABLE IF NOT EXISTS meta_naming_rule_m (
         naming_rule_id    SERIAL PRIMARY KEY,
         system_id         INTEGER NOT NULL REFERENCES meta_system_m(system_id) ON DELETE CASCADE,
-        section_cd        VARCHAR(20),
-        object_type_nm    VARCHAR(30) NOT NULL,
         rule_title_nm     VARCHAR(200) NOT NULL,
         format_pattern_nm TEXT,
         parts_json        JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -479,9 +445,50 @@ export async function migrateNamingRules() {
         use_yn            CHAR(1) NOT NULL DEFAULT 'Y',
         reg_dtm           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         upd_dtm           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        CONSTRAINT meta_naming_rule_m_use_yn_ck CHECK (use_yn IN ('Y', 'N')),
-        CONSTRAINT meta_naming_rule_m_sys_type_uk UNIQUE (system_id, object_type_nm, section_cd)
+        CONSTRAINT meta_naming_rule_m_use_yn_ck CHECK (use_yn IN ('Y', 'N'))
       )
+    `)
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'meta_naming_rule_m'
+            AND column_name = 'object_type_nm'
+        ) THEN
+          ALTER TABLE meta_naming_rule_m DROP CONSTRAINT IF EXISTS meta_naming_rule_m_sys_type_uk;
+          ALTER TABLE meta_naming_rule_m DROP COLUMN object_type_nm;
+        END IF;
+      END $$
+    `)
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'meta_naming_rule_m'
+            AND column_name = 'section_cd'
+        ) THEN
+          ALTER TABLE meta_naming_rule_m DROP CONSTRAINT IF EXISTS meta_naming_rule_m_sys_section_uk;
+          ALTER TABLE meta_naming_rule_m DROP COLUMN section_cd;
+        END IF;
+      END $$
+    `)
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'meta_naming_rule_m_sys_title_uk'
+        ) THEN
+          ALTER TABLE meta_naming_rule_m
+            ADD CONSTRAINT meta_naming_rule_m_sys_title_uk UNIQUE (system_id, rule_title_nm);
+        END IF;
+      END $$
     `)
 
     const existing = await client.query(
@@ -511,13 +518,11 @@ export async function migrateNamingRules() {
       for (const rule of NAMING_RULE_SEED) {
         await client.query(
           `INSERT INTO meta_naming_rule_m
-             (system_id, section_cd, object_type_nm, rule_title_nm, format_pattern_nm,
+             (system_id, rule_title_nm, format_pattern_nm,
               parts_json, examples_json, rule_desc, sort_ord, use_yn)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, 'Y')`,
+           VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, 'Y')`,
           [
             systemId,
-            rule.section_cd,
-            rule.object_type,
             rule.title,
             rule.format_pattern,
             JSON.stringify(rule.parts),

@@ -1,0 +1,53 @@
+.sql-hl {
+  margin: 0;
+  padding: 12px 14px;
+  font-family: 'JetBrains Mono', 'D2Coding', Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow: auto;
+  max-height: 340px;
+  color: #1f2937;
+  background: transparent;
+  tab-size: 2;
+}
+
+.sql-hl code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.sql-hl--after {
+  color: #1e3a8a;
+}
+
+.sql-hl__keyword {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.sql-hl__string {
+  color: #b45309;
+}
+
+.sql-hl__number {
+  color: #0f766e;
+}
+
+.sql-hl__bind {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.sql-hl__comment {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.tp-rewrite__col--after .sql-hl__keyword {
+  color: #1e40af;
+}
+
+.tp-rewrite__col--after .sql-hl__string {
+  color: #c2410c;
+}

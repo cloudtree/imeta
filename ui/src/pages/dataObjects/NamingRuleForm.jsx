@@ -1,32 +1,7 @@
-export const OBJECT_TYPE_OPTIONS = [
-  { id: 'BASIC', label: '기본 규칙' },
-  { id: 'TABLE', label: 'Table' },
-  { id: 'COLUMN', label: 'Column' },
-  { id: 'DATABASE', label: 'Database' },
-  { id: 'USER', label: 'User Schema' },
-  { id: 'ROLE', label: 'Role' },
-  { id: 'TABLESPACE', label: 'Tablespace' },
-  { id: 'PARTITION', label: 'Partition' },
-  { id: 'INDEX', label: 'Index' },
-  { id: 'CONSTRAINT', label: 'Constraint' },
-  { id: 'VIEW', label: 'View' },
-  { id: 'SEQUENCE', label: 'Sequence' },
-  { id: 'PROCEDURE', label: 'Procedure/Function' },
-  { id: 'TRIGGER', label: 'Trigger' },
-  { id: 'DBLINK', label: 'DB Link' },
-  { id: 'SYNONYM', label: 'Synonym' },
-]
-
-export const OBJECT_TYPE_LABEL = Object.fromEntries(
-  OBJECT_TYPE_OPTIONS.map((o) => [o.id, o.label]),
-)
-
-const EMPTY_PART = { code: 'P1', name: '', rulesText: '' }
+export const EMPTY_PART = { code: 'P1', name: '', rulesText: '' }
 
 export const EMPTY_RULE = {
   system_id: '',
-  section_cd: '',
-  object_type_nm: 'TABLE',
   rule_title_nm: '',
   format_pattern_nm: '',
   parts: [{ ...EMPTY_PART }],
@@ -48,8 +23,6 @@ export function ruleToForm(rule) {
   const parts = Array.isArray(rule.parts) ? rule.parts : []
   return {
     system_id: rule.system_id ?? '',
-    section_cd: rule.section_cd ?? '',
-    object_type_nm: rule.object_type_nm ?? 'TABLE',
     rule_title_nm: rule.rule_title_nm ?? '',
     format_pattern_nm: rule.format_pattern_nm ?? '',
     parts: parts.length
@@ -69,8 +42,6 @@ export function ruleToForm(rule) {
 export function formToPayload(form) {
   return {
     system_id: Number(form.system_id),
-    section_cd: form.section_cd?.trim() || null,
-    object_type_nm: form.object_type_nm,
     rule_title_nm: form.rule_title_nm?.trim(),
     format_pattern_nm: form.format_pattern_nm?.trim() || null,
     parts: (form.parts || []).map((p) => ({
@@ -114,31 +85,21 @@ export function NamingRuleForm({ value, onChange, systems = [], lockSystem = fal
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        <div className="form-group">
-          <label className="form-label required">시스템</label>
-          <select
-            className="form-control"
-            value={value.system_id}
-            onChange={set('system_id')}
-            disabled={lockSystem}
-          >
-            <option value="">시스템 선택</option>
-            {systems.map((s) => (
-              <option key={s.system_id} value={s.system_id}>
-                {s.system_cd} – {s.system_nm}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label required">객체 유형</label>
-          <select className="form-control" value={value.object_type_nm} onChange={set('object_type_nm')}>
-            {OBJECT_TYPE_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </div>
+      <div className="form-group">
+        <label className="form-label required">시스템</label>
+        <select
+          className="form-control"
+          value={value.system_id}
+          onChange={set('system_id')}
+          disabled={lockSystem}
+        >
+          <option value="">시스템 선택</option>
+          {systems.map((s) => (
+            <option key={s.system_id} value={s.system_id}>
+              {s.system_cd} – {s.system_nm}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="form-group">

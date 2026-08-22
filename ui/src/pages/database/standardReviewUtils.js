@@ -558,6 +558,7 @@ export function reviewSelectedDefinitions(rows, ctx) {
     if (!groupMap.has(tableKey)) {
       const group = {
         tableKey,
+        schema_nm: row.schema_nm || '',
         entity_nm: row.entity_nm,
         table_nm: row.table_nm,
         entityReview,
@@ -591,7 +592,377 @@ export function summarizeStandardReviewGroups(groups) {
   return { total, ok, warning, error }
 }
 
+function bumpStatusCounts(bucket, status) {
+  bucket.total += 1
+  if (status === 'error') bucket.error += 1
+  else if (status === 'warning') bucket.warning += 1
+  else bucket.ok += 1
+}
+
+function scoreFromCounts({ total, ok, warning }) {
+  if (!total) return null
+  return Math.round(((ok + warning * 0.5) / total) * 100)
+}
+
+function worstStatus(...statuses) {
+  if (statuses.includes('error')) return 'error'
+  if (statuses.includes('warning')) return 'warning'
+  return 'ok'
+}
+
+/**
+ * 서버 내 테이블·컬럼 단위 정상/주의(부분비표준)/오류(비표준) 집계
+ */
+export function summarizeUnitHealth(groups) {
+  const tables = { total: 0, ok: 0, warning: 0, error: 0, score: null }
+  const columns = { total: 0, ok: 0, warning: 0, error: 0, score: null }
+
+  for (const group of groups || []) {
+    const rowStatuses = (group.rows || []).map((row) => row.status || 'ok')
+    const tableStatus = worstStatus(group.entityReview?.status || 'ok', ...rowStatuses)
+    bumpStatusCounts(tables, tableStatus)
+
+    for (const status of rowStatuses) {
+      bumpStatusCounts(columns, status)
+    }
+  }
+
+  tables.score = scoreFromCounts(tables)
+  columns.score = scoreFromCounts(columns)
+
+  return {
+    tables,
+    columns,
+    legend: [
+      { key: 'ok', label: '정상', desc: '표준 준수', color: '#34c759' },
+      { key: 'warning', label: '주의', desc: '부분 비표준', color: '#ff9f0a' },
+      { key: 'error', label: '오류', desc: '비표준', color: '#ff3b30' },
+    ],
+  }
+}
+
 const ERROR_CATEGORY_ORDER = ['엔티티명', '테이블명', '표준단어', '표준용어', '표준도메인']
+
+const CATEGORY_CHART_COLORS = {
+  엔티티명: '#ff3b30',
+  테이블명: '#ff6b00',
+  표준단어: '#ff9f0a',
+  표준용어: '#af52de',
+  표준도메인: '#5856d6',
+  기타: '#8e8e93',
+}
+
+/**
+ * 분류(카테고리)별 정상/주의/오류 건수와 준수율 집계 — 건강도 그래프용
+ */
+export function summarizeCategoryHealth(groups) {
+  const map = new Map(
+    ERROR_CATEGORY_ORDER.map((category) => [
+      category,
+      { category, ok: 0, warning: 0, error: 0, total: 0, score: null, color: CATEGORY_CHART_COLORS[category] },
+    ]),
+  )
+
+  const bump = (category, level) => {
+    const key = map.has(category) ? category : '기타'
+    if (!map.has(key)) {
+      map.set(key, {
+        category: key,
+        ok: 0,
+        warning: 0,
+        error: 0,
+        total: 0,
+        score: null,
+        color: CATEGORY_CHART_COLORS[key] || CATEGORY_CHART_COLORS['기타'],
+      })
+    }
+    const entry = map.get(key)
+    if (level === 'error') entry.error += 1
+    else if (level === 'warning') entry.warning += 1
+    else if (level === 'ok') entry.ok += 1
+    else return
+    entry.total += 1
+  }
+
+  for (const group of groups || []) {
+    for (const item of group.entityReview?.items || []) {
+      bump(item.category || '기타', item.level)
+    }
+    for (const row of group.rows || []) {
+      for (const item of row.attributeReview?.items || []) {
+        bump(item.category || '기타', item.level)
+      }
+    }
+  }
+
+  const items = [...map.values()]
+    .filter((item) => item.total > 0 || ERROR_CATEGORY_ORDER.includes(item.category))
+    .map((item) => {
+      const score =
+        item.total > 0
+          ? Math.round(((item.ok + item.warning * 0.5) / item.total) * 100)
+          : null
+      return { ...item, score }
+    })
+    .sort((a, b) => {
+      const ai = ERROR_CATEGORY_ORDER.indexOf(a.category)
+      const bi = ERROR_CATEGORY_ORDER.indexOf(b.category)
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+    })
+
+  return { items, categories: ERROR_CATEGORY_ORDER }
+}
+
+/**
+ * 개별 오류 메시지를 짧은 분류 라벨로 정규화 (집계용)
+ */
+export function classifyFindingKind(category, message = '') {
+  const msg = String(message)
+
+  if (category === '표준단어') {
+    if (msg.startsWith('미등록 단어') || msg.includes('미등록 단어가 있습니다')) return '미등록 단어'
+    if (msg.includes('분해할 수 없습니다')) return '단어 분해 실패'
+    if (msg.includes('비어 있습니다') || msg.includes('속성명이 비어')) return '속성명 누락'
+    if (msg.includes('사전이 비어')) return '사전 없음'
+    if (msg.includes('동음이의어')) return '동음이의어'
+    if (msg.includes('모호')) return '분리 모호'
+    if (msg.includes('분류어가 아닙니다')) return '분류어 아님'
+  }
+
+  if (category === '표준용어') {
+    if (msg.includes('일치하는 표준용어가 없습니다')) return '용어 미매칭'
+    if (msg.includes('컬럼명 불일치')) return '컬럼명 불일치'
+    if (msg.includes('등록된 표준용어가 없습니다')) return '용어 사전 없음'
+    if (msg.startsWith('유사 용어')) return '유사 용어'
+    if (msg.startsWith('동의 용어')) return '동의 용어'
+  }
+
+  if (category === '표준도메인') {
+    if (msg.includes('도메인명') && msg.includes('매칭 없음')) return '도메인명 미매칭'
+    if (msg.includes('인포타입') && msg.includes('매칭 없음')) return '인포타입 미매칭'
+    if (msg.includes('데이터타입 불일치')) return '데이터타입 불일치'
+    if (msg.includes('등록된 표준도메인이 없습니다')) return '도메인 사전 없음'
+    if (msg.startsWith('유사 도메인')) return '유사 도메인'
+    if (msg.startsWith('권장 도메인')) return '권장 도메인'
+    if (msg.includes('분류어') && msg.includes('도메인')) return '분류어 도메인'
+    if (msg.includes('표준용어 연결 도메인')) return '용어 연결 도메인'
+    if (msg.includes('건 매칭')) return '도메인 복수 매칭'
+  }
+
+  if (category === '엔티티명') {
+    if (msg.includes('비어 있습니다')) return '엔티티명 누락'
+    if (msg.includes('유형 접미사가 없습니다')) return '유형 접미사 누락'
+    if (msg.includes('미등록 단어')) return '미등록 단어'
+    if (msg.includes('분해할 수 없습니다')) return '단어 분해 실패'
+    if (msg.includes('접미사') && msg.includes('만으로')) return '접미사만 구성'
+    if (msg.includes('동음이의어')) return '동음이의어'
+    if (msg.includes('모호')) return '분리 모호'
+    if (msg.includes('사전이 비어')) return '사전 없음'
+  }
+
+  if (category === '테이블명') {
+    if (msg.includes('비어 있습니다')) return '테이블명 누락'
+    if (msg.includes('SNAKE_CASE')) return '명명규칙 위반'
+    if (msg.includes('유형 약어')) return '유형 약어 불일치'
+    if (msg.includes('예상명')) return '예상명 불일치'
+  }
+
+  const short = msg.replace(/\s+/g, ' ').trim()
+  return short.length > 28 ? `${short.slice(0, 28)}…` : short || '기타'
+}
+
+/**
+ * 카테고리별 오류 분류(kind) + 건수 집계 — 주요 발견 사항용
+ * reasons: 원문 메시지별 건수 (표준단어/용어/도메인 상세 표시용)
+ */
+export function summarizeFindingKinds(groups, { levels = ['error'] } = {}) {
+  const levelSet = new Set(levels)
+  const byCategory = new Map()
+
+  const bump = (category, message) => {
+    const kind = classifyFindingKind(category, message)
+    if (!byCategory.has(category)) {
+      byCategory.set(category, {
+        category,
+        total: 0,
+        kinds: new Map(),
+        reasons: new Map(),
+      })
+    }
+    const entry = byCategory.get(category)
+    entry.total += 1
+    entry.kinds.set(kind, (entry.kinds.get(kind) || 0) + 1)
+    const reason = String(message || '').replace(/\s+/g, ' ').trim() || kind
+    entry.reasons.set(reason, (entry.reasons.get(reason) || 0) + 1)
+  }
+
+  for (const group of groups) {
+    for (const item of group.entityReview?.items || []) {
+      if (!levelSet.has(item.level)) continue
+      bump(item.category || '기타', item.message)
+    }
+    for (const row of group.rows || []) {
+      for (const item of row.attributeReview?.items || []) {
+        if (!levelSet.has(item.level)) continue
+        bump(item.category || '기타', item.message)
+      }
+    }
+  }
+
+  const orderIndex = (name) => {
+    const i = ERROR_CATEGORY_ORDER.indexOf(name)
+    return i === -1 ? 999 : i
+  }
+
+  return [...byCategory.values()]
+    .map((entry) => ({
+      category: entry.category,
+      total: entry.total,
+      kinds: [...entry.kinds.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
+        .map(([kind, count]) => ({ kind, count })),
+      reasons: [...entry.reasons.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
+        .map(([message, count]) => ({
+          message,
+          count,
+          kind: classifyFindingKind(entry.category, message),
+        })),
+    }))
+    .sort((a, b) => orderIndex(a.category) - orderIndex(b.category) || b.total - a.total)
+}
+
+/**
+ * 오류 분류별 지식그래프 노드 수집
+ * 주제영역(스키마) → 엔티티명 → 테이블명 [→ 속성/컬럼]
+ */
+export function collectFindingGraphNodes(groups, { category, kind, message = null } = {}) {
+  if (!category || !kind) return []
+
+  const nodes = []
+  const seen = new Set()
+  const wantMessage = message ? String(message).replace(/\s+/g, ' ').trim() : null
+
+  const matchesItem = (item) => {
+    if (!(item.level === 'error' || item.level === 'warning')) return false
+    if ((item.category || '') !== category) return false
+    if (classifyFindingKind(category, item.message) !== kind) return false
+    if (!wantMessage) return true
+    return String(item.message || '').replace(/\s+/g, ' ').trim() === wantMessage
+  }
+
+  const pushNode = ({
+    id,
+    subjectArea,
+    entityName,
+    tableName,
+    attributeName = null,
+    columnName = null,
+    messages = [],
+  }) => {
+    const key = [
+      subjectArea,
+      entityName || '(누락)',
+      tableName,
+      attributeName || '',
+      columnName || '',
+      kind,
+      wantMessage || '',
+      messages[0] || '',
+    ].join('|')
+    if (seen.has(key)) return
+    seen.add(key)
+    nodes.push({
+      id: id || key,
+      subjectArea,
+      entityName: entityName || null,
+      tableName,
+      attributeName: attributeName || null,
+      columnName: columnName || null,
+      kind,
+      messages,
+      reason: messages[0] || kind,
+    })
+  }
+
+  for (const group of groups || []) {
+    const schema = (group.schema_nm || group.rows?.[0]?.schema_nm || '').trim() || '—'
+    const entity = (group.entity_nm || '').trim()
+    const table = (group.table_nm || '').trim() || '—'
+
+    const entityMatched = (group.entityReview?.items || []).filter(matchesItem)
+    if (entityMatched.length) {
+      pushNode({
+        id: `${group.tableKey || table}::entity::${kind}::${wantMessage || ''}`,
+        subjectArea: schema,
+        entityName: entity,
+        tableName: table,
+        messages: entityMatched.map((m) => m.message),
+      })
+    }
+
+    for (const row of group.rows || []) {
+      const attrMatched = (row.attributeReview?.items || []).filter(matchesItem)
+      if (!attrMatched.length) continue
+
+      pushNode({
+        id: `${group.tableKey || table}::${row.column_nm || row.attribute_nm || 'col'}::${kind}::${wantMessage || attrMatched[0]?.message || ''}`,
+        subjectArea: schema,
+        entityName: entity,
+        tableName: table,
+        attributeName: (row.attribute_nm || '').trim() || null,
+        columnName: (row.column_nm || '').trim() || null,
+        messages: attrMatched.map((m) => m.message),
+      })
+    }
+  }
+
+  return nodes.sort((a, b) =>
+    a.subjectArea.localeCompare(b.subjectArea, 'ko')
+    || a.tableName.localeCompare(b.tableName, 'ko')
+    || String(a.columnName || '').localeCompare(String(b.columnName || ''), 'ko'),
+  )
+}
+
+/** @deprecated use collectFindingGraphNodes */
+export function collectEntityNameGraphNodes(groups, { kind = '엔티티명 누락' } = {}) {
+  return collectFindingGraphNodes(groups, { category: '엔티티명', kind })
+}
+
+/**
+ * 테이블 그룹의 오류/주의 상세 항목 수집
+ */
+export function collectTableIssueDetails(group) {
+  if (!group) return { entityItems: [], attributeItems: [] }
+
+  const entityItems = (group.entityReview?.items || [])
+    .filter((item) => item.level === 'error' || item.level === 'warning')
+    .map((item) => ({
+      scope: '엔티티/테이블',
+      category: item.category,
+      level: item.level,
+      message: item.message,
+      detail: item.detail || '',
+    }))
+
+  const attributeItems = []
+  for (const row of group.rows || []) {
+    for (const item of row.attributeReview?.items || []) {
+      if (item.level !== 'error' && item.level !== 'warning') continue
+      attributeItems.push({
+        scope: row.column_nm || row.attribute_nm || '—',
+        attribute: row.attribute_nm || '',
+        column: row.column_nm || '',
+        category: item.category,
+        level: item.level,
+        message: item.message,
+        detail: item.detail || '',
+      })
+    }
+  }
+
+  return { entityItems, attributeItems }
+}
 
 /**
  * 검토 결과에서 오류(level=error)를 카테고리별로 집계
@@ -601,12 +972,14 @@ export function classifyStandardReviewErrors(groups) {
 
   const bump = (category, message, sample) => {
     if (!map.has(category)) {
-      map.set(category, { category, count: 0, messages: new Map(), samples: [] })
+      map.set(category, { category, count: 0, messages: new Map(), kinds: new Map(), samples: [] })
     }
     const entry = map.get(category)
     entry.count += 1
     if (message) {
       entry.messages.set(message, (entry.messages.get(message) || 0) + 1)
+      const kind = classifyFindingKind(category, message)
+      entry.kinds.set(kind, (entry.kinds.get(kind) || 0) + 1)
     }
     if (sample && entry.samples.length < 5) {
       entry.samples.push(sample)
@@ -638,44 +1011,40 @@ export function classifyStandardReviewErrors(groups) {
     }
   }
 
+  const toCategoryResult = (entry) => {
+    const topMessages = [...entry.messages.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([message, count]) => ({ message, count }))
+    const kinds = [...entry.kinds.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
+      .map(([kind, count]) => ({ kind, count }))
+    return {
+      category: entry.category,
+      count: entry.count,
+      topMessages,
+      kinds,
+      samples: entry.samples,
+    }
+  }
+
+  const emptyCategory = (category) => ({
+    category,
+    count: 0,
+    topMessages: [],
+    kinds: [],
+    samples: [],
+  })
+
   const categories = ERROR_CATEGORY_ORDER
     .map((category) => {
       const entry = map.get(category)
-      if (!entry) {
-        return {
-          category,
-          count: 0,
-          topMessages: [],
-          samples: [],
-        }
-      }
-      const topMessages = [...entry.messages.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4)
-        .map(([message, count]) => ({ message, count }))
-      return {
-        category,
-        count: entry.count,
-        topMessages,
-        samples: entry.samples,
-      }
+      return entry ? toCategoryResult(entry) : emptyCategory(category)
     })
     .concat(
       [...map.keys()]
         .filter((key) => !ERROR_CATEGORY_ORDER.includes(key))
-        .map((category) => {
-          const entry = map.get(category)
-          const topMessages = [...entry.messages.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 4)
-            .map(([message, count]) => ({ message, count }))
-          return {
-            category,
-            count: entry.count,
-            topMessages,
-            samples: entry.samples,
-          }
-        }),
+        .map((category) => toCategoryResult(map.get(category))),
     )
 
   const totalErrors = categories.reduce((sum, c) => sum + c.count, 0)

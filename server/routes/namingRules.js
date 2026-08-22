@@ -3,12 +3,6 @@ import { pool } from '../db.js'
 
 const router = Router()
 
-const OBJECT_TYPES = new Set([
-  'BASIC', 'TABLE', 'COLUMN', 'DATABASE', 'USER', 'ROLE', 'TABLESPACE',
-  'PARTITION', 'INDEX', 'CONSTRAINT', 'VIEW', 'SEQUENCE', 'PROCEDURE',
-  'TRIGGER', 'DBLINK', 'SYNONYM',
-])
-
 function normalizeYn(v, fallback = 'Y') {
   const y = String(v ?? fallback).trim().toUpperCase()
   return y === 'N' ? 'N' : 'Y'
@@ -25,8 +19,6 @@ function parseJsonField(value, fallback) {
 }
 
 function validateRule(body) {
-  const section_cd = body.section_cd?.trim() || null
-  const object_type_nm = String(body.object_type_nm ?? '').trim().toUpperCase()
   const rule_title_nm = body.rule_title_nm?.trim()
   const format_pattern_nm = body.format_pattern_nm?.trim() || null
   const parts = parseJsonField(body.parts_json ?? body.parts, [])
@@ -37,9 +29,6 @@ function validateRule(body) {
   const system_id = Number(body.system_id)
 
   if (!system_id) return { error: '시스템을 선택하세요.' }
-  if (!object_type_nm || !OBJECT_TYPES.has(object_type_nm)) {
-    return { error: '유효한 객체 유형을 선택하세요.' }
-  }
   if (!rule_title_nm) return { error: '규칙 제목을 입력하세요.' }
   if (!Array.isArray(parts)) return { error: '구성 요소(parts) 형식이 올바르지 않습니다.' }
   if (!Array.isArray(examples)) return { error: '예시(examples) 형식이 올바르지 않습니다.' }
@@ -47,8 +36,6 @@ function validateRule(body) {
   return {
     data: {
       system_id,
-      section_cd,
-      object_type_nm,
       rule_title_nm,
       format_pattern_nm,
       parts,
@@ -71,17 +58,13 @@ function mapRow(row) {
 // GET /api/naming-rules
 router.get('/', async (req, res) => {
   try {
-    const { system_id, object_type_nm, search, use_yn, page = 1, limit = 100 } = req.query
+    const { system_id, search, use_yn, page = 1, limit = 100 } = req.query
     const params = []
     const conditions = []
 
     if (system_id) {
       params.push(Number(system_id))
       conditions.push(`r.system_id = $${params.length}`)
-    }
-    if (object_type_nm) {
-      params.push(String(object_type_nm).toUpperCase())
-      conditions.push(`r.object_type_nm = $${params.length}`)
     }
     if (use_yn) {
       params.push(normalizeYn(use_yn))
@@ -91,7 +74,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`)
       const n = params.length
       conditions.push(
-        `(r.rule_title_nm ILIKE $${n} OR r.section_cd ILIKE $${n} OR COALESCE(r.format_pattern_nm, '') ILIKE $${n})`,
+        `(r.rule_title_nm ILIKE $${n} OR COALESCE(r.format_pattern_nm, '') ILIKE $${n})`,
       )
     }
 
@@ -110,7 +93,7 @@ router.get('/', async (req, res) => {
        FROM meta_naming_rule_m r
        JOIN meta_system_m s ON s.system_id = r.system_id
        ${where}
-       ORDER BY r.sort_ord ASC, r.section_cd ASC, r.naming_rule_id ASC
+       ORDER BY r.sort_ord ASC, r.naming_rule_id ASC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     )
@@ -146,14 +129,12 @@ router.post('/', async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO meta_naming_rule_m
-         (system_id, section_cd, object_type_nm, rule_title_nm, format_pattern_nm,
+         (system_id, rule_title_nm, format_pattern_nm,
           parts_json, examples_json, rule_desc, sort_ord, use_yn)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)
        RETURNING *`,
       [
         data.system_id,
-        data.section_cd,
-        data.object_type_nm,
         data.rule_title_nm,
         data.format_pattern_nm,
         JSON.stringify(data.parts),
@@ -166,7 +147,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(mapRow(rows[0]))
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ message: '동일 시스템·객체유형·섹션의 규칙이 이미 존재합니다.' })
+      return res.status(409).json({ message: '동일 시스템·규칙 제목이 이미 존재합니다.' })
     }
     res.status(500).json({ message: err.message })
   }
@@ -180,15 +161,13 @@ router.put('/:id', async (req, res) => {
 
     const { rows } = await pool.query(
       `UPDATE meta_naming_rule_m SET
-         system_id = $1, section_cd = $2, object_type_nm = $3, rule_title_nm = $4,
-         format_pattern_nm = $5, parts_json = $6::jsonb, examples_json = $7::jsonb,
-         rule_desc = $8, sort_ord = $9, use_yn = $10, upd_dtm = NOW()
-       WHERE naming_rule_id = $11
+         system_id = $1, rule_title_nm = $2,
+         format_pattern_nm = $3, parts_json = $4::jsonb, examples_json = $5::jsonb,
+         rule_desc = $6, sort_ord = $7, use_yn = $8, upd_dtm = NOW()
+       WHERE naming_rule_id = $9
        RETURNING *`,
       [
         data.system_id,
-        data.section_cd,
-        data.object_type_nm,
         data.rule_title_nm,
         data.format_pattern_nm,
         JSON.stringify(data.parts),
@@ -203,7 +182,7 @@ router.put('/:id', async (req, res) => {
     res.json(mapRow(rows[0]))
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ message: '동일 시스템·객체유형·섹션의 규칙이 이미 존재합니다.' })
+      return res.status(409).json({ message: '동일 시스템·규칙 제목이 이미 존재합니다.' })
     }
     res.status(500).json({ message: err.message })
   }

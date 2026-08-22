@@ -20,7 +20,7 @@ const EXCEL_COLUMNS = [
   { key: 'kor_synonym_nm', label: '한글동의어',     required: false, example: '거래처'    },
   { key: 'taxon_yn',       label: '분류어여부',     required: false, example: 'N'           },
   { key: 'use_yn',         label: '사용여부',       required: false, example: 'Y'           },
-  { key: 'std_word_desc',      label: '설명',           required: false, example: '(비우면 네이버 국어사전 자동 입력)' },
+  { key: 'std_word_desc',      label: '설명',           required: false, example: '고객 정보를 관리하는 단어' },
 ]
 
 const PAGE_SIZE = 50

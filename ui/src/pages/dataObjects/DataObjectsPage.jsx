@@ -12,8 +12,6 @@ import {
   EMPTY_RULE,
   EMPTY_SYSTEM,
   NamingRuleForm,
-  OBJECT_TYPE_LABEL,
-  OBJECT_TYPE_OPTIONS,
   SystemForm,
   formToPayload,
   ruleToForm,
@@ -23,7 +21,6 @@ export default function DataObjectsPage() {
   const [systems, setSystems] = useState([])
   const [systemsLoading, setSystemsLoading] = useState(true)
   const [selectedSystemId, setSelectedSystemId] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
   const [search, setSearch] = useState('')
   const [rules, setRules] = useState([])
   const [rulesLoading, setRulesLoading] = useState(false)
@@ -70,7 +67,6 @@ export default function DataObjectsPage() {
       const res = await namingRulesApi.getAll({
         system_id: selectedSystemId,
         limit: 200,
-        ...(typeFilter ? { object_type_nm: typeFilter } : {}),
         ...(search.trim() ? { search: search.trim() } : {}),
       })
       setRules(Array.isArray(res) ? res : (res.items ?? []))
@@ -79,7 +75,7 @@ export default function DataObjectsPage() {
     } finally {
       setRulesLoading(false)
     }
-  }, [selectedSystemId, typeFilter, search])
+  }, [selectedSystemId, search])
 
   useEffect(() => { loadSystems() }, [loadSystems])
   useEffect(() => { loadRules() }, [loadRules])
@@ -223,8 +219,8 @@ export default function DataObjectsPage() {
   const getRow = (row) => ({
     id: row.naming_rule_id,
     primary: row.rule_title_nm,
-    secondary: row.format_pattern_nm || OBJECT_TYPE_LABEL[row.object_type_nm] || row.object_type_nm,
-    meta: OBJECT_TYPE_LABEL[row.object_type_nm] || row.object_type_nm,
+    secondary: row.format_pattern_nm || '',
+    meta: row.system_nm || '',
     status: row.use_yn === 'Y' ? '사용' : '미사용',
     statusTone: row.use_yn === 'Y' ? 'ok' : 'off',
   })
@@ -281,16 +277,8 @@ export default function DataObjectsPage() {
                 selectedId: selectedSystemId,
                 onSelect: (id) => {
                   setSelectedSystemId(id)
-                  setTypeFilter('')
                   closePanel()
                 },
-              },
-              {
-                key: 'types',
-                title: '객체 유형',
-                items: OBJECT_TYPE_OPTIONS.map((o) => ({ id: o.id, label: o.label, icon: '▣' })),
-                selectedId: typeFilter,
-                onSelect: (id) => setTypeFilter(id === typeFilter ? '' : id),
               },
             ]}
             footer={(
@@ -348,11 +336,7 @@ export default function DataObjectsPage() {
             emptyTitle="명명규칙을 선택하세요"
             emptyHint="좌측에서 시스템을 고른 뒤, 중앙 목록에서 규칙을 클릭하면 상세를 수정할 수 있습니다."
             title={panelMode === 'create' ? '명명규칙 등록' : (formValue.rule_title_nm || '명명규칙 수정')}
-            subtitle={
-              panelMode === 'edit'
-                ? (OBJECT_TYPE_LABEL[formValue.object_type_nm] || formValue.object_type_nm)
-                : selectedSystem?.system_nm
-            }
+            subtitle={selectedSystem?.system_nm}
             onClose={closePanel}
             footer={(
               <>
