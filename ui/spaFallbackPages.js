@@ -15,8 +15,10 @@ const SPA_ROUTES = [
   'subject-areas',
   'servers/register',
   'database/review',
+  'database/server-standard-review',
   'database/table-definition-review',
   'database/data-models',
+  'database/tuning',
 ]
 
 export function spaFallbackPages() {
