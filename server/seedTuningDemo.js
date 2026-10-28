@@ -218,7 +218,39 @@ async function loadRows(client) {
   }
 }
 
+async function ensureServerColumns(client) {
+  await client.query(`
+    ALTER TABLE meta_db_server_m
+      ADD COLUMN IF NOT EXISTS db_type_nm VARCHAR(20) NOT NULL DEFAULT 'POSTGRES',
+      ADD COLUMN IF NOT EXISTS diag_pack_yn CHAR(1) NOT NULL DEFAULT 'N',
+      ADD COLUMN IF NOT EXISTS tuning_pack_yn CHAR(1) NOT NULL DEFAULT 'N',
+      ADD COLUMN IF NOT EXISTS ora_privilege_cd VARCHAR(10) NOT NULL DEFAULT 'NORMAL'
+  `)
+  await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_meta_db_server_m_db_type') THEN
+        ALTER TABLE meta_db_server_m
+          ADD CONSTRAINT chk_meta_db_server_m_db_type CHECK (db_type_nm IN ('POSTGRES', 'ORACLE'));
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_meta_db_server_m_diag_pack') THEN
+        ALTER TABLE meta_db_server_m
+          ADD CONSTRAINT chk_meta_db_server_m_diag_pack CHECK (diag_pack_yn IN ('Y', 'N'));
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_meta_db_server_m_tuning_pack') THEN
+        ALTER TABLE meta_db_server_m
+          ADD CONSTRAINT chk_meta_db_server_m_tuning_pack CHECK (tuning_pack_yn IN ('Y', 'N'));
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_meta_db_server_m_ora_priv') THEN
+        ALTER TABLE meta_db_server_m
+          ADD CONSTRAINT chk_meta_db_server_m_ora_priv CHECK (ora_privilege_cd IN ('NORMAL', 'SYSDBA', 'SYSOPER'));
+      END IF;
+    END $$
+  `)
+}
+
 async function registerServer(client, conn) {
+  await ensureServerColumns(client)
   const ssl = sslYn(conn.host)
   const desc = '튜닝 화면 테스트용. 스키마에 tunetest를 입력하고 예제 SQL을 분석하세요. orders/order_items는 통계를 수집하지 않았고, status·FK 컬럼 인덱스가 없습니다.'
 
