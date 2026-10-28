@@ -28,6 +28,25 @@
   color: var(--color-text-secondary, #6b7280);
 }
 
+.tp-samples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.tp-samples__label {
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+  margin-right: 4px;
+}
+
+.tp-samples__btn {
+  padding: 0.35rem 0.85rem;
+  font-size: 12px;
+}
+
 .tp-tabs {
   display: flex;
   gap: 4px;

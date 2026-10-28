@@ -22,6 +22,7 @@ import { migrateDataObjects } from './migrateDataObjects.js'
 import { migrateNamingRules } from './migrateNamingRules.js'
 import { migrateSubjectAreaSystem } from './migrateSubjectAreaSystem.js'
 import { migrateInternalComments } from './migrateInternalComments.js'
+import { seedTuningDemo } from './seedTuningDemo.js'
 import { migrateInternalSchemaRename } from './migrateInternalSchemaRename.js'
 import { migrateFixUpdDtmTrigger } from './migrateFixUpdDtmTrigger.js'
 import { migrateDropCompatViews } from './migrateDropCompatViews.js'
@@ -93,6 +94,8 @@ app.listen(PORT, async () => {
     await migrateDropCompatViews()
     // 5) COMMENT + 표준사전 시드
     await migrateInternalComments()
+    // 6) 튜닝 화면에서 바로 분석할 수 있는 PostgreSQL 예제 스키마
+    await seedTuningDemo()
     console.log(`Server running on port ${PORT}`)
   } catch (err) {
     console.error('[startup] failed:', err.message)

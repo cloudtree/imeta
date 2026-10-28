@@ -19,6 +19,43 @@ const SOURCE_LABEL = {
 }
 
 const TUNABLE_DB_TYPES = ['ORACLE', 'POSTGRES']
+const DEMO_SERVER_NAME = '튜닝 테스트 PostgreSQL'
+const DEMO_SCHEMA = 'tunetest'
+
+const DEMO_SQLS = [
+  {
+    label: '전체 스캔 · 통계 없음',
+    sql: `SELECT order_id, order_date, amount
+FROM orders
+WHERE status = 'PENDING'`,
+  },
+  {
+    label: '문자 컬럼 = 숫자',
+    sql: `SELECT customer_id, customer_nm
+FROM customers
+WHERE phone_no = 1010000042`,
+  },
+  {
+    label: '컬럼에 함수',
+    sql: `SELECT product_id, unit_price
+FROM products
+WHERE UPPER(product_nm) = 'PRODUCT 0500'`,
+  },
+  {
+    label: '날짜 함수',
+    sql: `SELECT COUNT(*)
+FROM orders
+WHERE TO_CHAR(order_date, 'YYYY-MM-DD') = '2026-01-15'`,
+  },
+  {
+    label: '선행 % · 조인',
+    sql: `SELECT c.customer_nm, o.order_id, i.qty
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+JOIN order_items i ON i.order_id = o.order_id
+WHERE c.customer_nm LIKE '%00042%'`,
+  },
+]
 
 const TOP_SQL_METRICS = [
   { value: 'elapsed_time', label: '총 수행시간' },
@@ -74,7 +111,12 @@ export default function TuningPage() {
       .then((res) => {
         const tunable = (res.items ?? []).filter((s) => TUNABLE_DB_TYPES.includes(s.db_type_nm))
         setServers(tunable)
-        if (tunable.length) setServerId(String(tunable[0].db_server_id))
+        const demo = tunable.find((s) => s.db_server_nm === DEMO_SERVER_NAME)
+        const initial = demo ?? tunable[0]
+        if (initial) {
+          setServerId(String(initial.db_server_id))
+          if (demo) setSchemaName(DEMO_SCHEMA)
+        }
       })
       .catch((e) => setServersError(e.message))
   }, [])
@@ -235,11 +277,28 @@ export default function TuningPage() {
                   (Oracle: ALTER SESSION SET CURRENT_SCHEMA / PostgreSQL: SET search_path).
                 </span>
               </div>
+              <div className="tp-samples">
+                <span className="tp-samples__label">예제 SQL</span>
+                {DEMO_SQLS.map((sample) => (
+                  <button
+                    key={sample.label}
+                    type="button"
+                    className="btn btn-secondary tp-samples__btn"
+                    onClick={() => {
+                      setSchemaName(DEMO_SCHEMA)
+                      setSqlText(sample.sql)
+                      setAnalyzeError(null)
+                    }}
+                  >
+                    {sample.label}
+                  </button>
+                ))}
+              </div>
               <textarea
                 className="form-control tp-sql-input"
                 value={sqlText}
                 onChange={(e) => setSqlText(e.target.value)}
-                placeholder={'분석할 SQL을 입력하세요.\n예) SELECT order_id, amount FROM c##tunetest.orders WHERE status = \'PENDING\''}
+                placeholder={'분석할 SQL을 입력하세요.\n스키마 tunetest, 예) SELECT order_id, order_date, amount FROM orders WHERE status = \'PENDING\''}
                 rows={8}
                 spellCheck={false}
               />
