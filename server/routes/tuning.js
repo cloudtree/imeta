@@ -91,6 +91,9 @@ function describeOra942(message, schemaName) {
 
 function describePgError(message, schemaName) {
   if (!message || !/does not exist/i.test(message)) return message
+  if (/operator does not exist/i.test(message)) {
+    return `${message}\n→ PostgreSQL은 문자 컬럼과 숫자를 직접 비교하지 않습니다. 값을 문자 리터럴로 바꾸세요.`
+  }
   return (
     `${message}\n→ 테이블을 찾을 수 없습니다. ` +
     (schemaName
