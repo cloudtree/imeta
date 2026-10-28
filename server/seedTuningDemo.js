@@ -4,6 +4,12 @@ import { getPgConfig } from './dbConfig.js'
 const SERVER_NAME = '튜닝 테스트 PostgreSQL'
 const SCHEMA = 'tunetest'
 
+let tuningDemoStatus = { ok: false, message: 'not started' }
+
+export function getTuningDemoStatus() {
+  return tuningDemoStatus
+}
+
 const COUNTS = {
   dept: 10,
   customers: 3_000,
@@ -13,8 +19,20 @@ const COUNTS = {
 }
 
 function connectionParts(config) {
-  if (config.connectionString) {
-    const parsed = new URL(config.connectionString.replace(/^postgres:\/\//, 'postgresql://'))
+  if (config.host && config.database && config.user) {
+    return {
+      host: config.host,
+      port: Number(config.port || 5432),
+      database: config.database,
+      user: config.user,
+      password: config.password,
+    }
+  }
+
+  const raw = String(config.connectionString || '')
+  const normalized = raw.replace(/^postgres:\/\//, 'postgresql://')
+  try {
+    const parsed = new URL(normalized)
     return {
       host: parsed.hostname,
       port: Number(parsed.port || 5432),
@@ -22,13 +40,16 @@ function connectionParts(config) {
       user: decodeURIComponent(parsed.username),
       password: decodeURIComponent(parsed.password),
     }
-  }
-  return {
-    host: config.host,
-    port: Number(config.port || 5432),
-    database: config.database,
-    user: config.user,
-    password: config.password,
+  } catch {
+    const match = normalized.match(/^postgresql:\/\/([^:]+):([^@]+)@([^:/?#]+)(?::(\d+))?\/([^?#]+)/)
+    if (!match) return null
+    return {
+      user: decodeURIComponent(match[1]),
+      password: decodeURIComponent(match[2]),
+      host: match[3],
+      port: Number(match[4] || 5432),
+      database: decodeURIComponent(match[5]),
+    }
   }
 }
 
@@ -104,16 +125,30 @@ async function ensureTables() {
   await pool.query(`ALTER TABLE ${SCHEMA}.order_items SET (autovacuum_enabled = false)`)
 }
 
-async function loadRows() {
-  const existing = await pool.query(`SELECT COUNT(*)::int AS n FROM ${SCHEMA}.customers`)
-  if (existing.rows[0].n > 0) {
-    console.log(`[tuning-demo] ${SCHEMA} already loaded (${existing.rows[0].n} customers)`)
+async function loadRows(client) {
+  const existing = await client.query(`
+    SELECT
+      (SELECT COUNT(*) FROM ${SCHEMA}.customers)::int AS customers,
+      (SELECT COUNT(*) FROM ${SCHEMA}.orders)::int AS orders,
+      (SELECT COUNT(*) FROM ${SCHEMA}.order_items)::int AS items
+  `)
+  const counts = existing.rows[0]
+  if (
+    counts.customers >= COUNTS.customers
+    && counts.orders >= COUNTS.orders
+    && counts.items >= COUNTS.orderItems
+  ) {
+    console.log(`[tuning-demo] ${SCHEMA} already loaded (${counts.customers} customers)`)
     return
   }
 
-  await pool.query('BEGIN')
   try {
-    await pool.query(`
+    await client.query('BEGIN')
+    await client.query(`
+      TRUNCATE ${SCHEMA}.order_items, ${SCHEMA}.orders, ${SCHEMA}.customers, ${SCHEMA}.products, ${SCHEMA}.dept
+      RESTART IDENTITY CASCADE
+    `)
+    await client.query(`
       INSERT INTO ${SCHEMA}.dept (dept_id, dept_nm, region_cd)
       SELECT i,
              'Department ' || i,
@@ -121,7 +156,7 @@ async function loadRows() {
       FROM generate_series(1, $1) AS i
     `, [COUNTS.dept])
 
-    await pool.query(`
+    await client.query(`
       INSERT INTO ${SCHEMA}.customers (customer_id, customer_nm, phone_no, cust_cd, dept_id, reg_dt)
       SELECT i,
              'Customer ' || lpad(i::text, 5, '0'),
@@ -134,7 +169,7 @@ async function loadRows() {
       FROM generate_series(1, $1) AS i
     `, [COUNTS.customers, COUNTS.dept])
 
-    await pool.query(`
+    await client.query(`
       INSERT INTO ${SCHEMA}.products (product_id, product_nm, category_cd, unit_price)
       SELECT i,
              'Product ' || lpad(i::text, 4, '0'),
@@ -143,7 +178,7 @@ async function loadRows() {
       FROM generate_series(1, $1) AS i
     `, [COUNTS.products])
 
-    await pool.query(`
+    await client.query(`
       INSERT INTO ${SCHEMA}.orders (order_id, customer_id, order_date, status, amount)
       SELECT i,
              1 + ((i - 1) % $2),
@@ -160,7 +195,7 @@ async function loadRows() {
       FROM generate_series(1, $1) AS i
     `, [COUNTS.orders, COUNTS.customers])
 
-    await pool.query(`
+    await client.query(`
       INSERT INTO ${SCHEMA}.order_items (order_item_id, order_id, product_id, qty, unit_price)
       SELECT i,
              1 + ((i - 1) % $2),
@@ -170,30 +205,30 @@ async function loadRows() {
       FROM generate_series(1, $1) AS i
     `, [COUNTS.orderItems, COUNTS.orders, COUNTS.products])
 
-    await pool.query(`ANALYZE ${SCHEMA}.dept`)
-    await pool.query(`ANALYZE ${SCHEMA}.customers`)
-    await pool.query(`ANALYZE ${SCHEMA}.products`)
-    await pool.query('COMMIT')
+    await client.query(`ANALYZE ${SCHEMA}.dept`)
+    await client.query(`ANALYZE ${SCHEMA}.customers`)
+    await client.query(`ANALYZE ${SCHEMA}.products`)
+    await client.query('COMMIT')
     console.log(
       `[tuning-demo] loaded dept=${COUNTS.dept} customers=${COUNTS.customers} products=${COUNTS.products} orders=${COUNTS.orders} items=${COUNTS.orderItems}`,
     )
   } catch (err) {
-    await pool.query('ROLLBACK')
+    await client.query('ROLLBACK')
     throw err
   }
 }
 
-async function registerServer(conn) {
+async function registerServer(client, conn) {
   const ssl = sslYn(conn.host)
   const desc = '튜닝 화면 테스트용. 스키마에 tunetest를 입력하고 예제 SQL을 분석하세요. orders/order_items는 통계를 수집하지 않았고, status·FK 컬럼 인덱스가 없습니다.'
 
-  const existing = await pool.query(
+  const existing = await client.query(
     `SELECT db_server_id FROM meta_db_server_m WHERE db_server_nm = $1`,
     [SERVER_NAME],
   )
 
   if (existing.rows.length) {
-    await pool.query(
+    await client.query(
       `UPDATE meta_db_server_m
        SET db_type_nm = 'POSTGRES',
            host_nm = $1,
@@ -211,7 +246,7 @@ async function registerServer(conn) {
     return
   }
 
-  const inserted = await pool.query(
+  const inserted = await client.query(
     `INSERT INTO meta_db_server_m
        (db_server_nm, db_type_nm, host_nm, port_no, database_nm, user_nm, password_val, ssl_yn, db_server_desc, use_yn)
      VALUES ($1, 'POSTGRES', $2, $3, $4, $5, $6, $7, $8, 'Y')
@@ -223,13 +258,23 @@ async function registerServer(conn) {
 
 /** 앱 DB 안에 튜닝 테스트 스키마를 만들고, 같은 DB를 대상 서버로 등록한다. */
 export async function seedTuningDemo() {
-  const conn = connectionParts(getPgConfig())
-  if (!conn.host || !conn.database || !conn.user || !conn.password) {
-    console.warn('[tuning-demo] skipped: database connection parts are incomplete')
-    return
-  }
+  const client = await pool.connect()
+  try {
+    const conn = connectionParts(getPgConfig())
+    if (!conn?.host || !conn.database || !conn.user || !conn.password) {
+      tuningDemoStatus = { ok: false, message: 'database connection parts are incomplete' }
+      console.warn(`[tuning-demo] skipped: ${tuningDemoStatus.message}`)
+      return
+    }
 
-  await ensureTables()
-  await loadRows()
-  await registerServer(conn)
+    await ensureTables()
+    await loadRows(client)
+    await registerServer(client, conn)
+    tuningDemoStatus = { ok: true, message: `${SERVER_NAME} / schema ${SCHEMA}` }
+  } catch (err) {
+    tuningDemoStatus = { ok: false, message: err.message }
+    console.error('[tuning-demo] failed:', err.message)
+  } finally {
+    client.release()
+  }
 }

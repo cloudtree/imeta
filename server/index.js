@@ -22,7 +22,7 @@ import { migrateDataObjects } from './migrateDataObjects.js'
 import { migrateNamingRules } from './migrateNamingRules.js'
 import { migrateSubjectAreaSystem } from './migrateSubjectAreaSystem.js'
 import { migrateInternalComments } from './migrateInternalComments.js'
-import { seedTuningDemo } from './seedTuningDemo.js'
+import { getTuningDemoStatus, seedTuningDemo } from './seedTuningDemo.js'
 import { migrateInternalSchemaRename } from './migrateInternalSchemaRename.js'
 import { migrateFixUpdDtmTrigger } from './migrateFixUpdDtmTrigger.js'
 import { migrateDropCompatViews } from './migrateDropCompatViews.js'
@@ -46,7 +46,7 @@ app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 app.use('/api/auth', authRouter)
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', tuning_demo: getTuningDemoStatus() }))
 
 app.use('/api', requireAuth)
 app.use('/api/words',         wordsRouter)
